@@ -74,8 +74,12 @@ export default function handler(req, res) {
       detected.push("Awin");
     }
 
-    // CJ
-    if (params.cjevent || hostname.includes("cj.com") || hostname.includes("anrdoezrs.net")) {
+    // CJ Affiliate
+    if (
+      params.cjevent ||
+      hostname.includes("cj.com") ||
+      hostname.includes("anrdoezrs.net")
+    ) {
       detected.push("CJ Affiliate");
     }
 
@@ -106,6 +110,17 @@ export default function handler(req, res) {
       hostname.includes("partnerstack.com")
     ) {
       detected.push("PartnerStack");
+    }
+
+    // PartnerBoost
+    if (
+      params.pb ||
+      params.pb_id ||
+      params.pb_clickid ||
+      params.pb_source ||
+      hostname.includes("partnerboost.com")
+    ) {
+      detected.push("PartnerBoost");
     }
 
     // Tradedoubler
@@ -176,7 +191,10 @@ export default function handler(req, res) {
     }
 
     // DCMnetwork
-    if (params.dcm_click_id || hostname.includes("dcmnetwork.com")) {
+    if (
+      params.dcm_click_id ||
+      hostname.includes("dcmnetwork.com")
+    ) {
       detected.push("DCMnetwork");
     }
 
