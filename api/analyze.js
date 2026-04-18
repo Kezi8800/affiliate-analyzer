@@ -147,9 +147,7 @@ function mergeObjectsPreferringFirst(...objects) {
   const result = {};
   for (const obj of objects) {
     for (const [key, value] of Object.entries(obj || {})) {
-      if (!(key in result)) {
-        result[key] = value;
-      }
+      if (!(key in result)) result[key] = value;
     }
   }
   return result;
@@ -164,22 +162,16 @@ function normalizeKeys(obj = {}) {
 }
 
 function getUrlObject(input) {
-  try {
-    return new URL(input);
-  } catch {
-    return null;
-  }
+  try { return new URL(input); } catch { return null; }
 }
 
 function extractParamsFromUrl(rawUrl) {
   const u = getUrlObject(rawUrl);
   if (!u) return {};
-
   const out = {};
   u.searchParams.forEach((value, key) => {
     out[String(key).toLowerCase()] = value;
   });
-
   return out;
 }
 
@@ -212,9 +204,7 @@ function detectNetworkFromText(text, push) {
   const safeText = String(text).toLowerCase();
 
   Object.entries(UTM_NETWORK_MAP).forEach(([keyword, network]) => {
-    if (safeText.includes(keyword)) {
-      push(network);
-    }
+    if (safeText.includes(keyword)) push(network);
   });
 }
 
@@ -357,51 +347,11 @@ function enrichDetectedFromParams(detected, params, urlObj) {
   return dedupe(result);
 }
 
-function inferRisks(detected, params, redirectChain = []) {
-  const risks = [];
-  const utmMedium = (params.utm_medium || "").toLowerCase();
-  const utmCampaign = (params.utm_campaign || "").toLowerCase();
-
-  if (detected.includes("Amazon Attribution") && detected.includes("Amazon Associates")) {
-    risks.push("Possible duplicate attribution signal");
-  }
-
-  if (
-    (
-      params.irgwc ||
-      params.irclickid ||
-      params.cidimp ||
-      utmMedium.includes("impact") ||
-      utmCampaign.includes("impact")
-    ) &&
-    (params.utm_source || params.utm_medium || params.utm_campaign)
-  ) {
-    risks.push("Affiliate network + UTM layering detected");
-  }
-
-  if (detected.includes("Awin") && detected.includes("ShareASale")) {
-    risks.push("Awin + ShareASale style markers both present");
-  }
-
-  if (redirectChain.length > 2) {
-    risks.push("Multi-hop redirect chain detected");
-  }
-
-  if (Object.keys(params).length > 10) {
-    risks.push("Link contains many tracking parameters");
-  }
-
-  if (!risks.length) {
-    risks.push("No obvious structural risk detected");
-  }
-
-  return risks;
-}
-
-function renderDetectedPlatform(detected, params, urlObj) {
-  const priority = [
+function detectLinkStructure(detected, params, finalUrlObj) {
+  const primaryOrder = [
     "Amazon Associates",
-    "Amazon Creator Connections",
+    "Amazon Attribution",
+    "Impact",
     "CJ Affiliate",
     "Awin",
     "Rakuten Advertising",
@@ -409,7 +359,6 @@ function renderDetectedPlatform(detected, params, urlObj) {
     "FlexOffers",
     "Admitad",
     "TradeDoubler",
-    "Impact",
     "Partnerize / Pepperjam",
     "PartnerStack",
     "TUNE",
@@ -441,46 +390,194 @@ function renderDetectedPlatform(detected, params, urlObj) {
     "CPAlead",
     "ClickDealer",
     "AdCombo",
-    "Dr.Cash",
-    "Amazon Attribution"
+    "Dr.Cash"
   ];
 
-  for (const name of priority) {
-    if (detected.includes(name)) return name;
+  let primary = "Unknown";
+  for (const name of primaryOrder) {
+    if (detected.includes(name)) {
+      primary = name;
+      break;
+    }
   }
 
+  const secondary = [];
+  if (detected.includes("Amazon Creator Connections")) secondary.push("Amazon Creator Connections");
+
+  let confidence = "medium";
+  if (
+    params.tag || params.ascsubtag || params.cjevent || params.awc || params.irclickid || params.irgwc ||
+    params.ranmid || params.afftrack || params.tduid || params.wgcampaignid || params.ps_xid ||
+    params.pb || params.pb_id || params.everflow_id || params.tid
+  ) {
+    confidence = "high";
+  } else if (primary === "Unknown") {
+    confidence = "low";
+  }
+
+  return { primary, secondary: dedupe(secondary), confidence };
+}
+
+function detectTrafficLayer(detected, params) {
+  const secondary = [];
+  let primary = "Unknown";
+  let confidence = "low";
+
+  if (params.gclid || params.gbraid || params.wbraid || params.gad_campaignid) {
+    primary = "Google Ads";
+    confidence = "high";
+  } else if (params.fbclid) {
+    primary = "Meta Ads";
+    confidence = "high";
+  } else if (params.ttclid) {
+    primary = "TikTok Ads";
+    confidence = "high";
+  } else if (params.msclkid) {
+    primary = "Microsoft Ads";
+    confidence = "high";
+  } else if (
+    detected.includes("Impact") ||
+    detected.includes("CJ Affiliate") ||
+    detected.includes("Awin") ||
+    detected.includes("ShareASale") ||
+    detected.includes("Rakuten Advertising") ||
+    detected.includes("Partnerize / Pepperjam") ||
+    detected.includes("PartnerStack") ||
+    detected.includes("Everflow") ||
+    detected.includes("PartnerBoost") ||
+    detected.includes("Skimlinks") ||
+    detected.includes("Sovrn Commerce") ||
+    (params.utm_medium || "").toLowerCase().includes("aff") ||
+    (params.utm_medium || "").toLowerCase().includes("affiliate")
+  ) {
+    primary = "Affiliate Traffic";
+    confidence = "medium";
+  }
+
+  if (params.utm_source || params.utm_medium || params.utm_campaign || params.utm_content) {
+    secondary.push("UTM Tracking");
+    if (confidence === "low") confidence = "medium";
+  }
+
+  if ((params.utm_source || "").toLowerCase().includes("skimbit") || (params.utm_source || "").toLowerCase().includes("skimlinks")) {
+    secondary.push("Publisher Referral");
+  }
+
+  return { primary, secondary: dedupe(secondary), confidence };
+}
+
+function detectCampaignContext(detected, params) {
+  let primary = "Unknown";
+  const secondary = [];
+  let inferred = false;
+  let confidence = "low";
+
+  if (params.campaignid || params.linkid) {
+    primary = "Amazon Creator Connections";
+    confidence = "high";
+  } else if (
+    detected.includes("Skimlinks") ||
+    detected.includes("Sovrn Commerce") ||
+    (params.utm_source || "").toLowerCase().includes("skimbit") ||
+    (params.utm_source || "").toLowerCase().includes("skimlinks")
+  ) {
+    primary = "Publisher Deal";
+    inferred = true;
+    confidence = "medium";
+  } else if (params.coupon || params.discount) {
+    primary = "Coupon Campaign";
+    inferred = true;
+    confidence = "medium";
+  } else if (
+    detected.includes("PartnerBoost") ||
+    detected.includes("PartnerStack") ||
+    detected.includes("Refersion") ||
+    detected.includes("UpPromote") ||
+    detected.includes("GoAffPro") ||
+    detected.includes("Everflow") ||
+    detected.includes("TUNE")
+  ) {
+    primary = "Brand Affiliate Campaign";
+    inferred = true;
+    confidence = "medium";
+  }
+
+  if (detected.includes("Amazon Creator Connections") && primary !== "Amazon Creator Connections") {
+    secondary.push("Amazon Creator Connections");
+  }
+
+  return { primary, secondary: dedupe(secondary), inferred, confidence };
+}
+
+function inferRisks(linkStructure, trafficLayer, campaignContext, params, redirectChain = [], detected = []) {
+  const risks = [];
   const utmMedium = (params.utm_medium || "").toLowerCase();
-  const utmSource = (params.utm_source || "").toLowerCase();
   const utmCampaign = (params.utm_campaign || "").toLowerCase();
 
+  if (linkStructure.primary === "Amazon Attribution" && detected.includes("Amazon Associates")) {
+    risks.push("Possible duplicate attribution signal");
+  }
+
   if (
-    params.irgwc ||
-    params.irclickid ||
-    params.cidimp ||
-    utmCampaign.includes("impact") ||
-    utmMedium.includes("impact")
+    (
+      params.irgwc ||
+      params.irclickid ||
+      params.cidimp ||
+      utmMedium.includes("impact") ||
+      utmCampaign.includes("impact")
+    ) &&
+    (params.utm_source || params.utm_medium || params.utm_campaign)
   ) {
-    return "Impact";
+    risks.push("Affiliate network + UTM layering detected");
   }
 
-  if (utmSource.includes("skimbit") || utmSource.includes("skimlinks")) {
-    return "Skimlinks";
+  if (detected.includes("Awin") && detected.includes("ShareASale")) {
+    risks.push("Awin + ShareASale style markers both present");
   }
 
-  if (utmMedium.includes("aff") || utmMedium.includes("affiliate")) {
-    return "Affiliate Tracking Link";
+  if (redirectChain.length > 2) {
+    risks.push("Multi-hop redirect chain detected");
   }
 
-  if (urlObj) {
-    const host = urlObj.hostname.toLowerCase();
-    if (host.includes("levanta.io")) return "Levanta";
-    if (host.includes("archeraffiliates.com")) return "Archer Affiliates";
-    if (host.includes("partnerboost.com")) return "PartnerBoost";
-    if (host.includes("partnerstack.com")) return "PartnerStack";
-    if (host.includes("goaffpro.com")) return "GoAffPro";
+  if (Object.keys(params).length > 10) {
+    risks.push("Link contains many tracking parameters");
   }
 
-  return "Unknown / Generic Tracking Link";
+  if (campaignContext.inferred) {
+    risks.push("Campaign context inferred, not explicit");
+  }
+
+  if (!risks.length) {
+    risks.push("No obvious structural risk detected");
+  }
+
+  return risks;
+}
+
+function buildNotes(linkStructure, trafficLayer, campaignContext, redirectMeta, params) {
+  const notes = [];
+
+  if (linkStructure.primary === "Amazon Associates" && (params.camp || params.creative || params.linkcode)) {
+    notes.push("Amazon legacy affiliate parameters detected.");
+  }
+
+  if (campaignContext.primary === "Amazon Creator Connections" && linkStructure.primary === "Amazon Associates") {
+    notes.push("Creator Connections can coexist with standard Amazon Associates link structure.");
+  }
+
+  if (trafficLayer.secondary.includes("Publisher Referral")) {
+    notes.push("Publisher referral signals detected from source-level markers.");
+  }
+
+  if (redirectMeta && redirectMeta.chain && redirectMeta.chain.length > 1) {
+    notes.push(`Redirect chain analyzed across ${redirectMeta.chain.length} hop(s).`);
+  }
+
+  if (campaignContext.inferred) {
+    notes.push("Campaign context is inferred from surrounding signals rather than explicit platform-only fields.");
+  }
+
+  return notes;
 }
 
 async function fetchWithManualRedirect(url, method = "HEAD") {
@@ -493,7 +590,7 @@ async function fetchWithManualRedirect(url, method = "HEAD") {
       redirect: "manual",
       signal: controller.signal,
       headers: {
-        "user-agent": "BrandShuo-Affiliate-Checker/1.6.1"
+        "user-agent": "BrandShuo-Attribution-Intelligence/1.7"
       }
     });
     return response;
@@ -582,7 +679,6 @@ function analyzeUrlList(urls, redirectMeta = null) {
 
     finalUrlObj = urlObj;
     const params = normalizeKeys(extractParamsFromUrl(rawUrl));
-
     allParams.push(params);
 
     let detected = [];
@@ -593,8 +689,12 @@ function analyzeUrlList(urls, redirectMeta = null) {
 
   const mergedParams = mergeObjectsPreferringFirst(...allParams.reverse());
   const detected = dedupe(allDetected);
-  const platform = renderDetectedPlatform(detected, mergedParams, finalUrlObj);
-  const risks = inferRisks(detected, mergedParams, redirectMeta?.chain || []);
+
+  const linkStructure = detectLinkStructure(detected, mergedParams, finalUrlObj);
+  const trafficLayer = detectTrafficLayer(detected, mergedParams);
+  const campaignContext = detectCampaignContext(detected, mergedParams);
+  const risks = inferRisks(linkStructure, trafficLayer, campaignContext, mergedParams, redirectMeta?.chain || [], detected);
+  const notes = buildNotes(linkStructure, trafficLayer, campaignContext, redirectMeta, mergedParams);
 
   return {
     success: true,
@@ -604,9 +704,14 @@ function analyzeUrlList(urls, redirectMeta = null) {
     redirect_chain: redirectMeta?.chain || [urls[0]],
     redirect_chain_length: (redirectMeta?.chain || [urls[0]]).length,
     redirect_status: redirectMeta?.stoppedReason || "not_checked",
+
+    link_structure: linkStructure,
+    traffic_layer: trafficLayer,
+    campaign_context: campaignContext,
+
     detected,
     params: mergedParams,
-    platform,
+    notes,
     risks
   };
 }
@@ -622,7 +727,7 @@ async function analyzeUrl(inputUrl) {
 }
 
 app.get("/health", (req, res) => {
-  res.json({ ok: true, version: "1.6.1" });
+  res.json({ ok: true, version: "1.7" });
 });
 
 app.post("/api/analyze", async (req, res) => {
@@ -657,5 +762,5 @@ app.post("/api/analyze", async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`Affiliate checker API running on port ${PORT}`);
+  console.log(`Attribution Intelligence API running on port ${PORT}`);
 });
