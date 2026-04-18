@@ -230,8 +230,17 @@ function enrichDetectedFromParams(detected, params, urlObj) {
     if (!result.includes(name)) result.push(name);
   };
 
-  if (params.campaignid || params.linkid || params.linkcode) push("Amazon Creator Connections");
-  if (params.tag || params.ascsubtag) push("Amazon Associates");
+  if (params.campaignid || params.linkid) {
+    push("Amazon Creator Connections");
+  }
+
+  if (
+    params.tag ||
+    params.ascsubtag ||
+    ((params.camp || params.creative || params.linkcode) && params.tag)
+  ) {
+    push("Amazon Associates");
+  }
 
   if (params.maas || params.aa_campaignid || params.aa_adgroupid || params.aa_creativeid || params.ref_) {
     push("Amazon Attribution");
@@ -484,7 +493,7 @@ async function fetchWithManualRedirect(url, method = "HEAD") {
       redirect: "manual",
       signal: controller.signal,
       headers: {
-        "user-agent": "BrandShuo-Affiliate-Checker/1.6"
+        "user-agent": "BrandShuo-Affiliate-Checker/1.6.1"
       }
     });
     return response;
@@ -613,7 +622,7 @@ async function analyzeUrl(inputUrl) {
 }
 
 app.get("/health", (req, res) => {
-  res.json({ ok: true, version: "1.6" });
+  res.json({ ok: true, version: "1.6.1" });
 });
 
 app.post("/api/analyze", async (req, res) => {
