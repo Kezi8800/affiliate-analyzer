@@ -1,52 +1,43 @@
 const express = require("express");
 const cors = require("cors");
+const axios = require("axios");
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
 /**
- * ---------------------------------------------------------
- * Config
- * ---------------------------------------------------------
- */
-const PORT = process.env.PORT || 3000;
-
-/**
- * ---------------------------------------------------------
+ * =========================
  * Publisher Intelligence Rules
- * ---------------------------------------------------------
+ * =========================
  */
 const PUBLISHER_RULES = [
   {
-    name: "Future Publishing",
+    publisher: "Future Publishing",
     match: [
       /futurepublishing/i,
       /tomsguide\.com/i,
       /techradar\.com/i,
       /t3\.com/i,
       /homesandgardens\.com/i,
-      /marieclaire\.co\.uk/i,
-      /idealhome\.co\.uk/i
+      /toms(?:hardware|guide)\.com/i
     ],
     subMap: {
       "tomsguide.com": "Tom's Guide",
+      "tomshardware.com": "Tom's Hardware",
       "techradar.com": "TechRadar",
       "t3.com": "T3",
-      "homesandgardens.com": "Homes & Gardens",
-      "marieclaire.co.uk": "Marie Claire UK",
-      "idealhome.co.uk": "Ideal Home"
+      "homesandgardens.com": "Homes & Gardens"
     },
     type: "Media Affiliate"
   },
   {
-    name: "Red Ventures",
+    publisher: "Red Ventures",
     match: [
       /cnet\.com/i,
       /zdnet\.com/i,
       /bankrate\.com/i,
       /thepointsguy\.com/i,
-      /creditcards\.com/i,
       /healthline\.com/i
     ],
     subMap: {
@@ -54,382 +45,370 @@ const PUBLISHER_RULES = [
       "zdnet.com": "ZDNET",
       "bankrate.com": "Bankrate",
       "thepointsguy.com": "The Points Guy",
-      "creditcards.com": "CreditCards.com",
       "healthline.com": "Healthline"
     },
     type: "Media Affiliate"
   },
   {
-    name: "Dotdash Meredith",
+    publisher: "Dotdash Meredith",
     match: [
       /investopedia\.com/i,
       /verywellfit\.com/i,
       /people\.com/i,
-      /betterhomesandgardens\.com/i,
-      /foodandwine\.com/i
+      /foodandwine\.com/i,
+      /travelandleisure\.com/i
     ],
     subMap: {
       "investopedia.com": "Investopedia",
       "verywellfit.com": "Verywell Fit",
       "people.com": "People",
-      "betterhomesandgardens.com": "Better Homes & Gardens",
-      "foodandwine.com": "Food & Wine"
-    },
-    type: "Media Affiliate"
-  },
-  {
-    name: "BuzzFeed Group",
-    match: [
-      /buzzfeed\.com/i,
-      /huffpost\.com/i,
-      /tasty\.co/i
-    ],
-    subMap: {
-      "buzzfeed.com": "BuzzFeed",
-      "huffpost.com": "HuffPost",
-      "tasty.co": "Tasty"
+      "foodandwine.com": "Food & Wine",
+      "travelandleisure.com": "Travel + Leisure"
     },
     type: "Media Affiliate"
   }
 ];
 
 /**
- * ---------------------------------------------------------
- * Param dictionaries
- * ---------------------------------------------------------
+ * =========================
+ * Utility
+ * =========================
  */
-const PARAM_DICTIONARY = {
-  // Amazon Attribution
-  aa_campaignid: "Amazon Attribution Campaign ID",
-  aa_adgroupid: "Amazon Attribution Ad Group ID",
-  aa_creativeid: "Amazon Attribution Creative ID",
-  maas: "Amazon Attribution Maas",
-  ref_: "Amazon Ref",
-
-  // Amazon Associates / ACC
-  tag: "Amazon Associates Tag",
-  ascsubtag: "Amazon Sub Tag",
-  campaignid: "Campaign ID",
-  linkid: "Link ID",
-  linkcode: "Link Code",
-
-  // Impact
-  irclickid: "Impact Click ID",
-
-  // Awin
-  awc: "Awin Click ID",
-  click_id: "Click ID",
-
-  // CJ
-  cjevent: "CJ Event ID",
-
-  // Rakuten
-  ranMID: "Rakuten MID",
-  ranEAID: "Rakuten EAID",
-  ranSiteID: "Rakuten Site ID",
-
-  // ShareASale / Awin legacy
-  afftrack: "Affiliate Tracking",
-  u1: "Publisher Sub ID",
-
-  // Ads
-  gclid: "Google Ads Click ID",
-  gbraid: "Google Ads GBRAID",
-  wbraid: "Google Ads WBRAID",
-  gad_campaignid: "Google Ads Campaign ID",
-  fbclid: "Meta Ads Click ID",
-  ttclid: "TikTok Ads Click ID",
-  msclkid: "Microsoft Ads Click ID",
-
-  // Generic
-  utm_source: "UTM Source",
-  utm_medium: "UTM Medium",
-  utm_campaign: "UTM Campaign",
-  coupon: "Coupon Code"
-};
-
-/**
- * ---------------------------------------------------------
- * Helpers
- * ---------------------------------------------------------
- */
-function safeUrl(input) {
+function safeDecode(value) {
   try {
-    return new URL(input);
+    return decodeURIComponent(value);
   } catch {
-    return null;
+    return value;
   }
 }
 
-function parseQueryParams(urlObj) {
+function parseUrl(input) {
+  const urlObj = new URL(input);
   const params = {};
-  for (const [key, value] of urlObj.searchParams.entries()) {
-    params[key] = value;
-  }
-  return params;
-}
-
-function pickKeyParams(params) {
-  const result = {};
-  Object.keys(params).forEach((key) => {
-    if (PARAM_DICTIONARY[key] || isMeaningfulTrackingKey(key)) {
-      result[key] = params[key];
-    }
+  urlObj.searchParams.forEach((value, key) => {
+    params[key] = safeDecode(value);
   });
-  return result;
+  return { urlObj, params };
 }
 
-function isMeaningfulTrackingKey(key) {
-  return /utm_|click|clid|campaign|creative|aff|sub|tag|coupon|maas|ran|awc|ir/i.test(key);
+function normalizeHostname(hostname = "") {
+  return hostname.replace(/^www\./i, "").toLowerCase();
 }
 
-function getHostname(urlString) {
-  const u = safeUrl(urlString);
-  return u ? u.hostname.toLowerCase() : "";
-}
-
-function normalizeParamKeys(params) {
-  const normalized = {};
-  for (const [k, v] of Object.entries(params)) {
-    normalized[k.toLowerCase()] = v;
-  }
-  return normalized;
+function cleanText(value) {
+  return value == null ? "" : String(value).trim();
 }
 
 /**
- * ---------------------------------------------------------
- * Platform Detection
- * ---------------------------------------------------------
+ * =========================
+ * Redirect Chain Resolver (optional)
+ * 说明：默认开关关掉，避免某些站点阻拦 HEAD/GET
+ * 若你想开，改 ENABLE_REDIRECT_RESOLVE = true
+ * =========================
  */
-function detectPlatform(finalUrl, params) {
-  const host = getHostname(finalUrl);
-  const p = normalizeParamKeys(params);
+const ENABLE_REDIRECT_RESOLVE = false;
 
-  // Amazon Attribution
-  if (p.maas || p.aa_campaignid || p.aa_adgroupid || p.aa_creativeid || /aa_maas/i.test(p.ref_ || "")) {
+async function resolveRedirectChain(originalUrl) {
+  if (!ENABLE_REDIRECT_RESOLVE) {
     return {
-      name: "Amazon Attribution",
-      confidence: "high",
-      reason: "Detected maas / aa_* attribution parameters"
+      original_url: originalUrl,
+      final_url: originalUrl,
+      redirect_chain: [],
+      resolved: false
     };
   }
 
-  // Amazon Creator Connections / Associates
-  if (/amazon\./i.test(host)) {
-    if (
-      (p.campaignid || p.linkid || p.linkcode === "tr1") &&
-      (p.tag || p.ascsubtag)
-    ) {
+  try {
+    const chain = [];
+    let current = originalUrl;
+    let finalUrl = originalUrl;
+
+    const response = await axios.get(originalUrl, {
+      maxRedirects: 8,
+      validateStatus: () => true,
+      timeout: 12000
+    });
+
+    finalUrl = response?.request?.res?.responseUrl || originalUrl;
+    if (finalUrl && finalUrl !== originalUrl) {
+      chain.push({
+        from: originalUrl,
+        to: finalUrl
+      });
+    }
+
+    return {
+      original_url: originalUrl,
+      final_url: finalUrl,
+      redirect_chain: chain,
+      resolved: true
+    };
+  } catch (e) {
+    return {
+      original_url: originalUrl,
+      final_url: originalUrl,
+      redirect_chain: [],
+      resolved: false,
+      error: e.message
+    };
+  }
+}
+
+/**
+ * =========================
+ * Platform Detection
+ * =========================
+ */
+function detectPlatform(urlObj, params) {
+  const hostname = normalizeHostname(urlObj.hostname);
+  const full = `${urlObj.toString()} ${JSON.stringify(params)}`.toLowerCase();
+
+  const has = (k) => Object.prototype.hasOwnProperty.call(params, k);
+
+  // Amazon priority logic
+  if (/amazon\./i.test(hostname)) {
+    const hasTag = has("tag");
+    const hasMaas = has("maas") || has("aa_campaignid") || has("aa_adgroupid") || has("aa_creativeid") || /ref_=aa_maas/i.test(full);
+    const hasAccStyle = (
+      has("campaignId") ||
+      has("linkId") ||
+      (params.linkCode && /tr1/i.test(params.linkCode)) ||
+      (has("creative") && has("camp")) ||
+      has("ascsubtag")
+    );
+
+    if (hasMaas) {
+      return {
+        name: "Amazon Attribution",
+        family: "Amazon",
+        subtype: "Attribution"
+      };
+    }
+
+    if (hasTag && hasAccStyle) {
       return {
         name: "Amazon Creator Connections",
-        confidence: "medium",
-        reason: "Amazon link with campaign-style params and affiliate tagging"
+        family: "Amazon",
+        subtype: "Creator Connections"
       };
     }
 
-    if (p.tag) {
+    if (hasAccStyle && !hasTag) {
+      return {
+        name: "Amazon Creator Connections",
+        family: "Amazon",
+        subtype: "Creator Connections"
+      };
+    }
+
+    if (hasTag) {
       return {
         name: "Amazon Associates",
-        confidence: "high",
-        reason: "Detected Amazon affiliate tag parameter"
+        family: "Amazon",
+        subtype: "Associates"
       };
     }
-  }
 
-  // Impact
-  if (p.irclickid) {
     return {
-      name: "Impact",
-      confidence: "high",
-      reason: "Detected irclickid parameter"
+      name: "Amazon",
+      family: "Amazon",
+      subtype: "Unknown"
     };
   }
 
   // Awin
-  if (p.awc) {
+  if (has("awc") || has("clickref") || /^1011l/i.test(params.click_id || "") || /awin/i.test(full)) {
     return {
       name: "Awin",
-      confidence: "high",
-      reason: "Detected awc parameter"
+      family: "Affiliate Network",
+      subtype: "Affiliate"
     };
   }
 
-  if (p.click_id && /^1011[a-z0-9]+/i.test(p.click_id)) {
+  // Impact
+  if (has("irclickid") || has("impactclickid") || /impact/i.test(full)) {
     return {
-      name: "Awin",
-      confidence: "medium",
-      reason: "click_id pattern resembles Awin publisher click format"
+      name: "Impact",
+      family: "Affiliate Network",
+      subtype: "Affiliate"
     };
   }
 
   // CJ
-  if (p.cjevent) {
+  if (has("cjevent")) {
     return {
       name: "CJ Affiliate",
-      confidence: "high",
-      reason: "Detected cjevent parameter"
+      family: "Affiliate Network",
+      subtype: "Affiliate"
     };
   }
 
   // Rakuten
-  if (p.ranmid || p.raneaid || p.ransiteid) {
+  if (has("ranMID") || has("ranEAID") || has("ranSiteID")) {
     return {
       name: "Rakuten Advertising",
-      confidence: "high",
-      reason: "Detected Rakuten tracking parameters"
+      family: "Affiliate Network",
+      subtype: "Affiliate"
+    };
+  }
+
+  // ShareASale / Awin old merged environments sometimes still show SAS params
+  if (has("afftrack") || has("sscid") || has("shareasale")) {
+    return {
+      name: "ShareASale",
+      family: "Affiliate Network",
+      subtype: "Affiliate"
     };
   }
 
   // PartnerStack
-  if (p.ps_xid || p.ps_partner_key) {
+  if (has("ps_xid") || has("ps_partner_key")) {
     return {
       name: "PartnerStack",
-      confidence: "high",
-      reason: "Detected PartnerStack parameters"
+      family: "Partner / SaaS Referral",
+      subtype: "Affiliate"
     };
   }
 
-  // ShareASale / affiliate generic
-  if (p.afftrack) {
+  // Partnerize / Pepperjam
+  if (has("pjID") || has("pjMID")) {
     return {
-      name: "Affiliate Network",
-      confidence: "medium",
-      reason: "Detected generic afftrack parameter"
+      name: "Partnerize / Pepperjam",
+      family: "Affiliate Network",
+      subtype: "Affiliate"
+    };
+  }
+
+  // Google Ads direct
+  if (has("gclid") || has("wbraid") || has("gbraid") || has("gad_campaignid")) {
+    return {
+      name: "Google Ads",
+      family: "Paid Media",
+      subtype: "Ads"
+    };
+  }
+
+  // Meta Ads
+  if (has("fbclid")) {
+    return {
+      name: "Meta Ads",
+      family: "Paid Media",
+      subtype: "Ads"
+    };
+  }
+
+  // TikTok Ads
+  if (has("ttclid")) {
+    return {
+      name: "TikTok Ads",
+      family: "Paid Media",
+      subtype: "Ads"
+    };
+  }
+
+  // Microsoft Ads
+  if (has("msclkid")) {
+    return {
+      name: "Microsoft Ads",
+      family: "Paid Media",
+      subtype: "Ads"
     };
   }
 
   return {
-    name: "Unknown / Direct",
-    confidence: "low",
-    reason: "No strong affiliate platform signature detected"
+    name: "Unknown",
+    family: "Unknown",
+    subtype: "Unknown"
   };
 }
 
 /**
- * ---------------------------------------------------------
- * Traffic Type Detection
- * ---------------------------------------------------------
+ * =========================
+ * Traffic Layer Detection
+ * =========================
  */
-function detectTrafficType(finalUrl, params, platform) {
-  const p = normalizeParamKeys(params);
-
-  if (p.gclid || p.gbraid || p.wbraid || p.gad_campaignid) {
-    return {
-      traffic_type: "Paid Search / Google Ads",
-      traffic_note: "Google Ads click identifiers detected"
-    };
-  }
-
-  if (p.fbclid) {
-    return {
-      traffic_type: "Paid Social / Meta Ads",
-      traffic_note: "Meta click identifier detected"
-    };
-  }
-
-  if (p.ttclid) {
-    return {
-      traffic_type: "Paid Social / TikTok Ads",
-      traffic_note: "TikTok click identifier detected"
-    };
-  }
-
-  if (p.msclkid) {
-    return {
-      traffic_type: "Paid Search / Microsoft Ads",
-      traffic_note: "Microsoft Ads click identifier detected"
-    };
-  }
-
-  if (/affiliate/i.test(p.utm_medium || "")) {
-    return {
-      traffic_type: "Affiliate",
-      traffic_note: "utm_medium=affiliate"
-    };
-  }
-
-  if (/Amazon Attribution/i.test(platform.name)) {
-    return {
-      traffic_type: "Attribution / Offsite Ads",
-      traffic_note: "Amazon Attribution parameter pattern detected"
-    };
-  }
-
-  if (/Associates|Awin|Impact|CJ|Rakuten|PartnerStack|Affiliate/i.test(platform.name)) {
-    return {
-      traffic_type: "Affiliate",
-      traffic_note: "Affiliate platform signature detected"
-    };
-  }
-
-  return {
-    traffic_type: "Unknown / Mixed",
-    traffic_note: "No dominant traffic signature detected"
-  };
-}
-
-/**
- * ---------------------------------------------------------
- * Tracking Layers
- * ---------------------------------------------------------
- */
-function detectTrackingLayers(params, platform, publisher) {
-  const p = normalizeParamKeys(params);
+function detectTrackingLayers(params, platform) {
   const layers = [];
+  const has = (k) => Object.prototype.hasOwnProperty.call(params, k);
 
-  if (platform?.name && platform.name !== "Unknown / Direct") {
+  if (platform?.name && platform.name !== "Unknown") {
     layers.push(platform.name);
   }
 
-  if (publisher?.publisher) {
-    layers.push("Publisher Ownership");
+  if (has("utm_medium") && /affiliate/i.test(params.utm_medium)) {
+    layers.push("Affiliate Traffic");
   }
 
-  if (p.gclid || p.gbraid || p.wbraid || p.gad_campaignid) {
+  if (has("utm_medium") && /cpc|paid|ppc/i.test(params.utm_medium)) {
+    layers.push("Paid Traffic");
+  }
+
+  if (has("gclid") || has("wbraid") || has("gbraid")) {
     layers.push("Google Ads");
   }
 
-  if (p.fbclid) {
+  if (has("fbclid")) {
     layers.push("Meta Ads");
   }
 
-  if (p.ttclid) {
+  if (has("ttclid")) {
     layers.push("TikTok Ads");
   }
 
-  if (p.msclkid) {
+  if (has("msclkid")) {
     layers.push("Microsoft Ads");
   }
 
-  if (p.tag) {
-    layers.push("Affiliate Tag");
+  if (has("maas") || has("aa_campaignid") || has("aa_adgroupid") || has("aa_creativeid")) {
+    layers.push("Amazon Attribution");
   }
 
-  if (p.coupon) {
-    layers.push("Coupon Signal");
+  if (has("tag")) {
+    layers.push("Amazon Associates Signal");
+  }
+
+  if (
+    has("campaignId") ||
+    has("linkId") ||
+    has("ascsubtag") ||
+    (params.linkCode && /tr1|ur2/i.test(params.linkCode))
+  ) {
+    layers.push("Creator / Commerce Signal");
   }
 
   return [...new Set(layers)];
 }
 
 /**
- * ---------------------------------------------------------
- * Publisher Intelligence
- * ---------------------------------------------------------
+ * =========================
+ * Publisher Detection
+ * =========================
  */
-function detectPublisher(finalUrl, params) {
-  const host = getHostname(finalUrl);
-  const allText = `${finalUrl} ${JSON.stringify(params)}`.toLowerCase();
-  const p = normalizeParamKeys(params);
+function detectPublisher(urlObj, params) {
+  const full = `${urlObj.toString()} ${JSON.stringify(params)}`;
+  const hostname = normalizeHostname(urlObj.hostname);
 
   for (const rule of PUBLISHER_RULES) {
     for (const pattern of rule.match) {
-      if (pattern.test(allText)) {
+      if (pattern.test(full)) {
         let subSite = null;
 
         if (rule.subMap) {
-          for (const domain of Object.keys(rule.subMap)) {
-            if (host.includes(domain) || allText.includes(domain)) {
+          for (const domain in rule.subMap) {
+            if (hostname.includes(domain) || full.toLowerCase().includes(domain.toLowerCase())) {
+              subSite = rule.subMap[domain];
+              break;
+            }
+          }
+        }
+
+        // fallback: utm_source 命中子站名
+        if (!subSite && params.utm_source) {
+          const source = params.utm_source.toLowerCase();
+          for (const domain in (rule.subMap || {})) {
+            const siteName = String(rule.subMap[domain]).toLowerCase().replace(/[^a-z0-9]/g, "");
+            const srcNorm = source.replace(/[^a-z0-9]/g, "");
+            if (srcNorm.includes(siteName) || siteName.includes(srcNorm)) {
               subSite = rule.subMap[domain];
               break;
             }
@@ -437,7 +416,7 @@ function detectPublisher(finalUrl, params) {
         }
 
         return {
-          publisher: rule.name,
+          publisher: rule.publisher,
           sub_site: subSite,
           type: rule.type,
           confidence: "high"
@@ -446,22 +425,22 @@ function detectPublisher(finalUrl, params) {
     }
   }
 
-  if (p.utm_source) {
-    const source = String(p.utm_source).trim();
-
-    if (/futurepublishing/i.test(source)) {
-      return {
-        publisher: "Future Publishing",
-        sub_site: null,
-        type: "Media Affiliate",
-        confidence: "high"
-      };
-    }
-
+  // Special handling for futurepublishing source
+  if (params.utm_source && /futurepublishing/i.test(params.utm_source)) {
     return {
-      publisher: source,
+      publisher: "Future Publishing",
       sub_site: null,
-      type: "Unknown Affiliate / Publisher",
+      type: "Media Affiliate",
+      confidence: "high"
+    };
+  }
+
+  // Generic affiliate publisher source
+  if (params.utm_source && /affiliate|publisher|media|futurepublishing|tomsguide/i.test(params.utm_source)) {
+    return {
+      publisher: params.utm_source,
+      sub_site: null,
+      type: "Affiliate / Publisher",
       confidence: "medium"
     };
   }
@@ -475,162 +454,267 @@ function detectPublisher(finalUrl, params) {
 }
 
 /**
- * ---------------------------------------------------------
- * Commission Engine
- * ---------------------------------------------------------
+ * =========================
+ * Parameter Signals
+ * =========================
  */
-function detectCommissionEngine(platform, params, publisher) {
-  const p = normalizeParamKeys(params);
+function buildParameterSignals(params) {
+  const picked = {};
+  const importantKeys = [
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "click_id",
+    "awc",
+    "irclickid",
+    "cjevent",
+    "ranMID",
+    "ranEAID",
+    "ranSiteID",
+    "tag",
+    "maas",
+    "aa_campaignid",
+    "aa_adgroupid",
+    "aa_creativeid",
+    "campaignId",
+    "linkId",
+    "linkCode",
+    "ascsubtag",
+    "gclid",
+    "wbraid",
+    "gbraid",
+    "fbclid",
+    "ttclid",
+    "msclkid",
+    "ps_xid",
+    "ps_partner_key"
+  ];
 
-  let primaryClaimer = "Unknown";
-  let conflictLevel = "Low";
-  const secondarySignals = [];
-  let note = "No strong commission conflict detected";
-
-  if (/Amazon Attribution/i.test(platform.name)) {
-    primaryClaimer = "Amazon Attribution";
-  } else if (/Amazon Creator Connections/i.test(platform.name)) {
-    primaryClaimer = publisher?.publisher
-      ? `${platform.name} (${publisher.publisher})`
-      : "Amazon Creator Connections";
-  } else if (/Amazon Associates/i.test(platform.name)) {
-    primaryClaimer = publisher?.publisher
-      ? `Amazon Associates (${publisher.publisher})`
-      : "Amazon Associates";
-  } else if (/Awin|Impact|CJ Affiliate|Rakuten Advertising|PartnerStack|Affiliate/i.test(platform.name)) {
-    primaryClaimer = publisher?.publisher
-      ? `${platform.name} (${publisher.publisher})`
-      : platform.name;
-  } else if (publisher?.publisher) {
-    primaryClaimer = `Publisher / Media (${publisher.publisher})`;
-  }
-
-  if (p.gclid || p.gbraid || p.wbraid || p.gad_campaignid) {
-    secondarySignals.push("Google Ads");
-  }
-  if (p.fbclid) {
-    secondarySignals.push("Meta Ads");
-  }
-  if (p.ttclid) {
-    secondarySignals.push("TikTok Ads");
-  }
-  if (p.msclkid) {
-    secondarySignals.push("Microsoft Ads");
-  }
-  if (p.coupon) {
-    secondarySignals.push("Coupon");
-  }
-
-  if (
-    /Awin|Impact|CJ Affiliate|Rakuten Advertising|Amazon Associates|Amazon Creator Connections|Affiliate/i.test(platform.name) &&
-    secondarySignals.some((x) => /Ads/.test(x))
-  ) {
-    conflictLevel = "High";
-    note = "Affiliate platform detected together with paid media click signals";
-  } else if (
-    /Amazon Attribution/i.test(platform.name) &&
-    (p.tag || p.ascsubtag)
-  ) {
-    conflictLevel = "Medium";
-    note = "Attribution and affiliate-style tag signals appear together";
-  }
-
-  return {
-    primary_claimer: primaryClaimer,
-    conflict_level: conflictLevel,
-    secondary_signals: secondarySignals,
-    note
-  };
-}
-
-/**
- * ---------------------------------------------------------
- * Redirect Chain
- * ---------------------------------------------------------
- * 当前先保留基础版。后续你要接真实跳转抓取时，再加 fetch/manual redirect。
- */
-function buildRedirectChain(originalUrl, finalUrl) {
-  if (originalUrl === finalUrl) {
-    return [{ url: originalUrl }];
-  }
-
-  return [{ url: originalUrl }, { url: finalUrl }];
-}
-
-/**
- * ---------------------------------------------------------
- * Main Analyzer
- * ---------------------------------------------------------
- */
-function analyzeUrl(inputUrl) {
-  const urlObj = safeUrl(inputUrl);
-  if (!urlObj) {
-    throw new Error("Invalid URL");
-  }
-
-  const finalUrl = urlObj.toString();
-  const params = parseQueryParams(urlObj);
-
-  const platform = detectPlatform(finalUrl, params);
-  const publisher = detectPublisher(finalUrl, params);
-  const traffic = detectTrafficType(finalUrl, params, platform);
-  const commission = detectCommissionEngine(platform, params, publisher);
-  const trackingLayers = detectTrackingLayers(params, platform, publisher);
-  const keyParams = pickKeyParams(params);
-  const redirectChain = buildRedirectChain(inputUrl, finalUrl);
-
-  return {
-    original_url: inputUrl,
-    final_url: finalUrl,
-    platform,
-    traffic_type: traffic.traffic_type,
-    traffic_note: traffic.traffic_note,
-    publisher,
-    commission_engine: commission,
-    tracking_layers: trackingLayers,
-    key_params: keyParams,
-    redirect_chain: redirectChain
-  };
-}
-
-/**
- * ---------------------------------------------------------
- * Routes
- * ---------------------------------------------------------
- */
-app.get("/api/health", (req, res) => {
-  res.json({
-    success: true,
-    service: "BrandShuo Attribution Checker API",
-    version: "v1.9"
+  importantKeys.forEach(key => {
+    if (params[key] != null) picked[key] = params[key];
   });
-});
 
+  return picked;
+}
+
+/**
+ * =========================
+ * Traffic Type
+ * =========================
+ */
+function inferTrafficType(platform, publisher, params) {
+  const has = (k) => Object.prototype.hasOwnProperty.call(params, k);
+
+  if (platform.name === "Amazon Attribution") return "Marketplace Ads / Attribution";
+  if (platform.name === "Amazon Creator Connections") return "Creator Commerce Affiliate";
+  if (platform.name === "Amazon Associates") return "Affiliate";
+  if (publisher?.type === "Media Affiliate") return "Media Affiliate";
+  if (platform.family === "Affiliate Network") return "Affiliate";
+  if (has("gclid") || has("fbclid") || has("ttclid") || has("msclkid")) return "Paid Media";
+  return "Unknown";
+}
+
+/**
+ * =========================
+ * Commission Engine
+ * =========================
+ */
+function buildCommissionEngine({ platform, publisher, params, trackingLayers }) {
+  const has = (k) => Object.prototype.hasOwnProperty.call(params, k);
+
+  let primary_claimer = "Unknown";
+  const secondary_signals = [];
+  let conflict_level = "Low";
+  let reason = "Insufficient commission ownership signals.";
+  let confidence = "low";
+
+  // Amazon priority
+  if (platform.name === "Amazon Attribution") {
+    primary_claimer = "Amazon Attribution";
+    confidence = "high";
+    reason = "Detected Amazon Attribution parameters such as maas / aa_campaignid.";
+  } else if (platform.name === "Amazon Creator Connections") {
+    primary_claimer = "Amazon Creator Connections";
+    confidence = "high";
+    reason = "Detected Creator Connections style signals such as creative+camp / ascsubtag / linkCode.";
+  } else if (platform.name === "Amazon Associates") {
+    primary_claimer = "Amazon Associates";
+    confidence = "high";
+    reason = "Detected Amazon Associates tag parameter.";
+  } else if (platform.family === "Affiliate Network") {
+    if (publisher?.publisher) {
+      primary_claimer = `${platform.name} (${publisher.publisher})`;
+      confidence = "high";
+      reason = `Detected ${platform.name} affiliate network parameters and matched publisher ownership signals.`;
+    } else {
+      primary_claimer = platform.name;
+      confidence = "medium";
+      reason = `Detected ${platform.name} affiliate network parameters.`;
+    }
+  } else if (has("gclid") || has("fbclid") || has("ttclid") || has("msclkid")) {
+    primary_claimer = platform.name !== "Unknown" ? platform.name : "Paid Media";
+    confidence = "medium";
+    reason = "Detected paid media click identifiers.";
+  }
+
+  if (has("gclid")) secondary_signals.push("Google Ads");
+  if (has("fbclid")) secondary_signals.push("Meta Ads");
+  if (has("ttclid")) secondary_signals.push("TikTok Ads");
+  if (has("msclkid")) secondary_signals.push("Microsoft Ads");
+  if (has("utm_medium") && /affiliate/i.test(params.utm_medium) && platform.family !== "Affiliate Network") {
+    secondary_signals.push("Affiliate UTM Signal");
+  }
+  if (publisher?.publisher && !secondary_signals.includes(publisher.publisher)) {
+    secondary_signals.push(publisher.publisher);
+  }
+
+  const affiliatePresent =
+    platform.family === "Affiliate Network" ||
+    platform.name === "Amazon Associates" ||
+    platform.name === "Amazon Attribution" ||
+    platform.name === "Amazon Creator Connections";
+
+  const adsPresent = has("gclid") || has("fbclid") || has("ttclid") || has("msclkid");
+
+  if (affiliatePresent && adsPresent) {
+    conflict_level = "High";
+    reason += " Mixed affiliate and paid media signals detected in the same URL.";
+  } else if ((affiliatePresent && secondary_signals.length > 1) || trackingLayers.length >= 3) {
+    conflict_level = "Medium";
+  }
+
+  return {
+    primary_claimer,
+    secondary_signals: [...new Set(secondary_signals)],
+    conflict_level,
+    reason,
+    confidence
+  };
+}
+
+/**
+ * =========================
+ * Confidence
+ * =========================
+ */
+function inferOverallConfidence(platform, publisher, params) {
+  const signalCount = Object.keys(buildParameterSignals(params)).length;
+
+  if (platform.name !== "Unknown" && publisher?.confidence === "high" && signalCount >= 2) return "high";
+  if (platform.name !== "Unknown" && signalCount >= 1) return "medium";
+  return "low";
+}
+
+/**
+ * =========================
+ * Human Summary
+ * =========================
+ */
+function buildSummary({ platform, publisher, trafficType, commissionEngine }) {
+  const pieces = [];
+
+  if (platform?.name && platform.name !== "Unknown") {
+    pieces.push(`Primary platform appears to be ${platform.name}.`);
+  } else {
+    pieces.push("No strong platform match was found.");
+  }
+
+  if (trafficType && trafficType !== "Unknown") {
+    pieces.push(`Traffic type is likely ${trafficType}.`);
+  }
+
+  if (publisher?.publisher) {
+    if (publisher.sub_site) {
+      pieces.push(`Publisher ownership points to ${publisher.publisher}, with the traffic likely coming from ${publisher.sub_site}.`);
+    } else {
+      pieces.push(`Publisher ownership points to ${publisher.publisher}.`);
+    }
+  }
+
+  if (commissionEngine?.primary_claimer && commissionEngine.primary_claimer !== "Unknown") {
+    pieces.push(`The most likely commission claimant is ${commissionEngine.primary_claimer}.`);
+  }
+
+  if (commissionEngine?.conflict_level === "High") {
+    pieces.push("There is a high conflict risk because affiliate and paid media signals are mixed in the same link.");
+  }
+
+  return pieces.join(" ");
+}
+
+/**
+ * =========================
+ * API
+ * =========================
+ */
 app.post("/api/analyze", async (req, res) => {
   try {
-    const { url } = req.body || {};
+    const inputUrl = cleanText(req.body?.url);
 
-    if (!url || typeof url !== "string") {
-      return res.status(400).json({
-        success: false,
-        error: "Missing required field: url"
-      });
+    if (!inputUrl) {
+      return res.status(400).json({ error: "Missing url" });
     }
 
-    const data = analyzeUrl(url);
+    let resolved = {
+      original_url: inputUrl,
+      final_url: inputUrl,
+      redirect_chain: [],
+      resolved: false
+    };
+
+    resolved = await resolveRedirectChain(inputUrl);
+
+    const { urlObj, params } = parseUrl(resolved.final_url);
+
+    const platform = detectPlatform(urlObj, params);
+    const publisher = detectPublisher(urlObj, params);
+    const tracking_layers = detectTrackingLayers(params, platform);
+    const parameter_signals = buildParameterSignals(params);
+    const traffic_type = inferTrafficType(platform, publisher, params);
+    const commission_engine = buildCommissionEngine({
+      platform,
+      publisher,
+      params,
+      trackingLayers: tracking_layers
+    });
+    const confidence = inferOverallConfidence(platform, publisher, params);
+    const summary = buildSummary({
+      platform,
+      publisher,
+      trafficType: traffic_type,
+      commissionEngine: commission_engine
+    });
 
     return res.json({
-      success: true,
-      data
+      version: "v1.9",
+      tool: "BrandShuo Attribution Checker",
+      input_url: inputUrl,
+      final_url: resolved.final_url,
+      redirect_chain: resolved.redirect_chain,
+      resolved_redirects: resolved.resolved,
+      platform,
+      traffic_type,
+      tracking_layers,
+      publisher,
+      commission_engine,
+      parameter_signals,
+      confidence,
+      summary,
+      analyzed_at: new Date().toISOString()
     });
   } catch (error) {
     return res.status(500).json({
-      success: false,
-      error: error.message || "Unexpected server error"
+      error: "Analysis failed",
+      message: error.message
     });
   }
 });
 
+app.get("/", (req, res) => {
+  res.send("BrandShuo Attribution Checker API is running.");
+});
+
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`BrandShuo Attribution Checker API running on port ${PORT}`);
+  console.log(`Server listening on port ${PORT}`);
 });
