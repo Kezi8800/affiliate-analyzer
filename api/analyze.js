@@ -1,4 +1,4 @@
-(function(){
+(function () {
   const API_ENDPOINT = "/api/analyze";
 
   const els = {
@@ -28,12 +28,12 @@
     candidates: document.getElementById("bs-candidates")
   };
 
-  function setStatus(msg, show = true){
+  function setStatus(msg, show = true) {
     els.status.textContent = msg || "";
     els.status.classList.toggle("show", !!show);
   }
 
-  function clearResults(){
+  function clearResults() {
     els.results.classList.remove("show");
     els.platform.textContent = "-";
     els.trafficType.textContent = "-";
@@ -56,7 +56,7 @@
     els.candidates.innerHTML = "";
   }
 
-  function escapeHtml(str){
+  function escapeHtml(str) {
     return String(str ?? "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
@@ -65,15 +65,16 @@
       .replace(/'/g, "&#039;");
   }
 
-  function pill(text, variant = "accent"){
-    return '<span class="bs-pill pill-' + variant + '">' + escapeHtml(text) + '</span>';
+  function pill(text, variant = "accent") {
+    return `<span class="bs-pill pill-${variant}">${escapeHtml(text)}</span>`;
   }
 
-  function renderTrackingLayers(layers){
-    if(!Array.isArray(layers) || !layers.length){
+  function renderTrackingLayers(layers) {
+    if (!Array.isArray(layers) || !layers.length) {
       els.trackingLayers.innerHTML = '<div class="bs-note">No major tracking layers detected.</div>';
       return;
     }
+
     els.trackingLayers.innerHTML = layers.map(layer => {
       let variant = "accent";
       if (/affiliate|associates|creator|network|publisher/i.test(layer)) variant = "ok";
@@ -83,11 +84,12 @@
     }).join("");
   }
 
-  function renderDecisionBasis(items){
-    if(!Array.isArray(items) || !items.length){
+  function renderDecisionBasis(items) {
+    if (!Array.isArray(items) || !items.length) {
       els.decisionBasis.innerHTML = '<div class="bs-note">No decision notes available.</div>';
       return;
     }
+
     els.decisionBasis.innerHTML = items.map(item => `
       <div class="bs-row">
         <span class="label">Reason</span>
@@ -96,25 +98,28 @@
     `).join("");
   }
 
-  function renderParamSignals(signals){
-    if(!signals || typeof signals !== "object" || !Object.keys(signals).length){
+  function renderParamSignals(signals) {
+    if (!signals || typeof signals !== "object" || !Object.keys(signals).length) {
       els.paramSignals.innerHTML = '<div class="bs-note">No special parameters detected.</div>';
       return;
     }
+
     const html = Object.entries(signals).map(([k, v]) => `
       <div class="bs-row">
         <span class="label">${escapeHtml(k)}</span>
         <span class="value">${escapeHtml(typeof v === "object" ? JSON.stringify(v) : v)}</span>
       </div>
     `).join("");
-    els.paramSignals.innerHTML = '<div class="bs-list">' + html + '</div>';
+
+    els.paramSignals.innerHTML = `<div class="bs-list">${html}</div>`;
   }
 
-  function renderCandidates(candidates){
-    if(!Array.isArray(candidates) || !candidates.length){
+  function renderCandidates(candidates) {
+    if (!Array.isArray(candidates) || !candidates.length) {
       els.candidates.innerHTML = '<div class="bs-note">No candidate platforms detected.</div>';
       return;
     }
+
     els.candidates.innerHTML = candidates.map(item => `
       <div class="bs-row">
         <span class="label">${escapeHtml(item.name)} (${escapeHtml(item.confidence || "-")})</span>
@@ -123,7 +128,7 @@
     `).join("");
   }
 
-  function renderResult(data){
+  function renderResult(data) {
     els.results.classList.add("show");
 
     els.platform.textContent = data.primary_platform?.name || "-";
@@ -153,9 +158,10 @@
     els.rawJson.textContent = JSON.stringify(data, null, 2);
   }
 
-  async function detect(){
+  async function detect() {
     const url = els.input.value.trim();
-    if(!url){
+
+    if (!url) {
       setStatus("Please paste a URL first.");
       return;
     }
@@ -163,7 +169,7 @@
     clearResults();
     setStatus("Analyzing weighted signals, platform candidates, and commission ownership...");
 
-    try{
+    try {
       const res = await fetch(API_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -179,7 +185,7 @@
         data = null;
       }
 
-      if(!res.ok){
+      if (!res.ok) {
         throw new Error(
           (data && (data.detail || data.message || data.error)) ||
           ("Request failed with status " + res.status)
@@ -188,7 +194,7 @@
 
       setStatus("Detection complete.");
       renderResult(data);
-    }catch(err){
+    } catch (err) {
       console.error("Detect failed:", err);
       setStatus("Error: " + (err.message || "Unknown error"));
     }
@@ -196,14 +202,14 @@
 
   els.detectBtn.addEventListener("click", detect);
 
-  els.clearBtn.addEventListener("click", function(){
+  els.clearBtn.addEventListener("click", function () {
     els.input.value = "";
     setStatus("", false);
     clearResults();
   });
 
-  els.input.addEventListener("keydown", function(e){
-    if(e.key === "Enter") detect();
+  els.input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") detect();
   });
 
   const examples = {
@@ -218,7 +224,7 @@
   };
 
   document.querySelectorAll("#bs-aff-tool .bs-hint").forEach(tag => {
-    tag.addEventListener("click", function(){
+    tag.addEventListener("click", function () {
       const key = this.getAttribute("data-example");
       if (examples[key]) {
         els.input.value = examples[key];
