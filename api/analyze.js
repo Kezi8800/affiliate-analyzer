@@ -1,45 +1,105 @@
-module.exports = async (req, res) => {
-  try {
-    if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
+(function () {
+  const API_ENDPOINT = "https://tools.brandshuo.com/api/analyze";
+
+  const input = document.getElementById("bs-input-url");
+  const detectBtn = document.getElementById("bs-detect-btn");
+  const clearBtn = document.getElementById("bs-clear-btn");
+  const status = document.getElementById("bs-status");
+  const results = document.getElementById("bs-results");
+  const rawJson = document.getElementById("bs-raw-json");
+
+  function setStatus(msg, show = true) {
+    if (!status) {
+      alert("没找到 #bs-status");
+      return;
+    }
+    status.textContent = msg || "";
+    status.classList.toggle("show", !!show);
+  }
+
+  async function detect() {
+    alert("Detect 按钮已点击");
+
+    if (!input) {
+      alert("没找到输入框 #bs-input-url");
+      return;
     }
 
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const url = body?.url;
+    const url = input.value.trim();
 
     if (!url) {
-      return res.status(400).json({ error: "Missing url" });
+      alert("请输入 URL");
+      setStatus("Please paste a URL first.");
+      return;
     }
 
-    return res.status(200).json({
-      primary_platform: { name: "Test Platform" },
-      traffic_type: "test",
-      confidence: "high",
-      publisher: {
-        publisher: "Test Publisher",
-        sub_site: "Test Subsite",
-        type: "media",
-        confidence: "high"
-      },
-      commission_engine: {
-        primary_claimer: "Test Claimer",
-        secondary_claimers: ["A", "B"],
-        conflict_level: "low",
-        reason: "This is a test response",
-        confidence: "high",
-        decision_basis: ["API is working"]
-      },
-      tracking_layers: ["test-layer"],
-      parameter_signals: { sample: "ok" },
-      platform_candidates: [
-        { name: "Test Platform", confidence: "high", score: 100, signals: ["test"] }
-      ],
-      summary: "API test successful"
-    });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({
-      error: error.message || "Internal server error"
-    });
+    setStatus("正在请求接口...");
+    console.log("request url =", API_ENDPOINT);
+    console.log("input url =", url);
+
+    try {
+      const res = await fetch(API_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ url })
+      });
+
+      alert("接口已返回，HTTP 状态: " + res.status);
+
+      const text = await res.text();
+      console.log("response text =", text);
+
+      if (rawJson) {
+        rawJson.textContent = text;
+      }
+
+      if (results) {
+        results.classList.add("show");
+      }
+
+      if (!res.ok) {
+        setStatus("接口报错: " + res.status);
+        alert("接口报错:\n" + text);
+        return;
+      }
+
+      setStatus("请求成功");
+      alert("请求成功，已收到返回数据");
+    } catch (err) {
+      console.error(err);
+      setStatus("请求失败: " + (err.message || "unknown error"));
+      alert("fetch 失败:\n" + (err.message || "unknown error"));
+    }
   }
-};
+
+  function init() {
+    alert("analyze.js 已加载");
+
+    if (!detectBtn) {
+      alert("没找到按钮 #bs-detect-btn");
+      return;
+    }
+
+    detectBtn.addEventListener("click", detect);
+
+    if (clearBtn) {
+      clearBtn.addEventListener("click", function () {
+        if (input) input.value = "";
+        if (rawJson) rawJson.textContent = "";
+        if (results) results.classList.remove("show");
+        setStatus("", false);
+      });
+    }
+
+    setStatus("页面已加载", false);
+    console.log("bind success");
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
