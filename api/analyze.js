@@ -184,9 +184,9 @@ const UTM_NETWORK_MAP = {
   walmart_affiliate: "Walmart"
 };
 
-/* =========================
-   工具函数
-========================= */
+function dedupe(arr) {
+  return [...new Set(arr)];
+}
 
 function dedupeObjectsByName(arr) {
   const map = new Map();
@@ -271,10 +271,6 @@ function detectTrafficSources(params) {
   return dedupe(out);
 }
 
-/* =========================
-   Amazon Rule Panel
-========================= */
-
 function getAmazonRulePanel(urlObj, params) {
   const rules = [];
   const hasTag = !!params.tag;
@@ -306,10 +302,6 @@ function getAmazonRulePanel(urlObj, params) {
   rules.push(storePath ? "amazon_store_or_product_path=true" : "amazon_store_or_product_path=false");
   return rules;
 }
-
-/* =========================
-   外部联盟平台识别
-========================= */
 
 function detectExternalNetworks(urlObj, params) {
   if (!urlObj) return [];
@@ -358,10 +350,6 @@ function detectExternalNetworks(urlObj, params) {
 
   return hits;
 }
-
-/* =========================
-   Amazon Detection
-========================= */
 
 function detectAmazon(urlObj, params) {
   if (!urlObj) return null;
@@ -515,10 +503,6 @@ function detectAmazon(urlObj, params) {
   };
 }
 
-/* =========================
-   Walmart Detection
-========================= */
-
 function detectWalmart(urlObj, params) {
   if (!urlObj) return null;
 
@@ -595,10 +579,6 @@ function detectWalmart(urlObj, params) {
   };
 }
 
-/* =========================
-   Best Match Across Chain
-========================= */
-
 function getBestExternalAcrossChain(chain) {
   const hits = [];
 
@@ -638,10 +618,6 @@ function getBestWalmartAcrossChain(chain) {
   }
   return null;
 }
-
-/* =========================
-   主 Classification
-========================= */
 
 function buildCompositeClassification(chain) {
   const firstNode = chain[0];
@@ -749,10 +725,6 @@ function buildCompositeClassification(chain) {
   };
 }
 
-/* =========================
-   Mixed Signals / Risks
-========================= */
-
 function detectMixedSignals(classification, trafficSources) {
   const warnings = [];
   const layers = classification.matchedLayers || [];
@@ -778,10 +750,6 @@ function detectMixedSignals(classification, trafficSources) {
 
   return warnings;
 }
-
-/* =========================
-   Commission Engine
-========================= */
 
 function inferPublisherFromTag(tag) {
   if (!tag) return null;
@@ -916,10 +884,6 @@ function buildCommissionEngine(classification, params, matchedLayers, trafficSou
   return result;
 }
 
-/* =========================
-   Redirect Chain
-========================= */
-
 async function fetchWithManualRedirect(url, method = "HEAD") {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -930,7 +894,7 @@ async function fetchWithManualRedirect(url, method = "HEAD") {
       redirect: "manual",
       signal: controller.signal,
       headers: {
-        "user-agent": "BrandShuo-Attribution-Intelligence/1.8.3"
+        "user-agent": "BrandShuo-Attribution-Intelligence/2.0"
       }
     });
     return response;
@@ -1069,10 +1033,6 @@ async function buildResolvedChain(inputUrl) {
   };
 }
 
-/* =========================
-   Notes
-========================= */
-
 function buildNotes(classification, chain) {
   const notes = [];
 
@@ -1101,9 +1061,46 @@ function buildNotes(classification, chain) {
   return notes;
 }
 
-/* =========================
-   Main Analyze
-========================= */
+function buildFlowNodes(result) {
+  const nodes = [];
+  const traffic = result.traffic_sources || [];
+  const layers = result.matched_layers || [];
+  const ce = result.commission_engine || {};
+
+  traffic.forEach((t) => {
+    nodes.push({ label: t, type: "traffic" });
+  });
+
+  layers.forEach((layer) => {
+    if (!String(layer).includes("Amazon")) {
+      nodes.push({ label: layer, type: "network" });
+    }
+  });
+
+  if (ce.attribution_owner && ce.attribution_owner !== "Unknown") {
+    nodes.push({ label: ce.attribution_owner, type: "attribution" });
+  } else if (result.classification?.type) {
+    nodes.push({ label: result.classification.type, type: "classification" });
+  }
+
+  nodes.push({
+    label: result.hostname || "Destination",
+    type: "final"
+  });
+
+  const cleaned = [];
+  const seen = new Set();
+
+  for (const node of nodes) {
+    const key = `${node.type}:${node.label}`;
+    if (!seen.has(key)) {
+      cleaned.push(node);
+      seen.add(key);
+    }
+  }
+
+  return cleaned;
+}
 
 async function analyzeUrl(inputUrl) {
   const urlObj = getUrlObject(inputUrl);
@@ -1130,9 +1127,9 @@ async function analyzeUrl(inputUrl) {
     trafficSources
   );
 
-  return {
+  const result = {
     success: true,
-    version: "1.8.3",
+    version: "2.0",
     input_url: inputUrl,
     final_url: resolved.finalUrl,
     hostname: classification.domain || urlObj.hostname,
@@ -1151,14 +1148,14 @@ async function analyzeUrl(inputUrl) {
     amazon_rules: classification.amazonRules || [],
     signals: classification.signals || []
   };
+
+  result.flow_nodes = buildFlowNodes(result);
+
+  return result;
 }
 
-/* =========================
-   API
-========================= */
-
 app.get("/health", (req, res) => {
-  res.json({ ok: true, version: "1.8.3" });
+  res.json({ ok: true, version: "2.0" });
 });
 
 app.post("/api/analyze", async (req, res) => {
