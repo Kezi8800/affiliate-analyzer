@@ -1,12 +1,3 @@
-const express = require("express");
-const cors = require("cors");
-
-const app = express();
-
-app.use(cors());
-app.use(express.json({ limit: "1mb" }));
-
-const PORT = process.env.PORT || 3000;
 const MAX_HTTP_REDIRECTS = 5;
 const MAX_WRAPPED_DEPTH = 3;
 const FETCH_TIMEOUT_MS = 8000;
@@ -184,6 +175,19 @@ const UTM_NETWORK_MAP = {
   walmart_affiliate: "Walmart"
 };
 
+function setCors(res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+function json(res, statusCode, payload) {
+  setCors(res);
+  res.statusCode = statusCode;
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.end(JSON.stringify(payload));
+}
+
 function dedupe(arr) {
   return [...new Set(arr)];
 }
@@ -261,932 +265,560 @@ function detectNetworkFromText(text, push) {
   });
 }
 
-function detectTrafficSources(params) {
-  const out = [];
-  if (params.gclid || params.gbraid || params.wbraid || params.gad_campaignid) out.push("Google Ads");
-  if (params.fbclid) out.push("Meta Ads");
-  if (params.ttclid) out.push("TikTok Ads");
-  if (params.msclkid) out.push("Microsoft Ads");
-  if (params.li_fat_id) out.push("LinkedIn Ads");
-  return dedupe(out);
-}
-
-function getAmazonRulePanel(urlObj, params) {
-  const rules = [];
-  const hasTag = !!params.tag;
-  const hasAscSubtag = !!params.ascsubtag;
-  const hasCampaignId = Object.prototype.hasOwnProperty.call(params, "campaignid");
-  const hasLinkId = Object.prototype.hasOwnProperty.call(params, "linkid");
-  const hasTr1 = (params.linkcode || "").toLowerCase() === "tr1";
-  const hasCreatorId = Object.prototype.hasOwnProperty.call(params, "creatorid");
-  const hasAaCampaign = Object.prototype.hasOwnProperty.call(params, "aa_campaignid");
-  const hasAaAdgroup = Object.prototype.hasOwnProperty.call(params, "aa_adgroupid");
-  const hasAaCreative = Object.prototype.hasOwnProperty.call(params, "aa_creativeid");
-  const hasMaas = Object.prototype.hasOwnProperty.call(params, "maas");
-  const hasAaRef = String(params.ref_ || "").toLowerCase().includes("aa_");
-  const creatorPath = pathIncludes(urlObj?.pathname || "", ["/creator", "/creators", "/influencer"]);
-  const storePath = pathIncludes(urlObj?.pathname || "", AMAZON_STORE_PATHS);
-
-  rules.push(hasTag ? "tag=true" : "tag=false");
-  rules.push(hasAscSubtag ? "ascsubtag=true" : "ascsubtag=false");
-  rules.push(hasCampaignId ? "campaignId=true" : "campaignId=false");
-  rules.push(hasLinkId ? "linkId=true" : "linkId=false");
-  rules.push(hasTr1 ? "linkCode=tr1" : "linkCode!=tr1");
-  rules.push(hasCreatorId ? "creatorId=true" : "creatorId=false");
-  rules.push(hasAaCampaign ? "aa_campaignid=true" : "aa_campaignid=false");
-  rules.push(hasAaAdgroup ? "aa_adgroupid=true" : "aa_adgroupid=false");
-  rules.push(hasAaCreative ? "aa_creativeid=true" : "aa_creativeid=false");
-  rules.push(hasMaas ? "maas=true" : "maas=false");
-  rules.push(hasAaRef ? "ref_=aa_*" : "ref_=aa_* false");
-  rules.push(creatorPath ? "creator_path=true" : "creator_path=false");
-  rules.push(storePath ? "amazon_store_or_product_path=true" : "amazon_store_or_product_path=false");
-  return rules;
-}
-
-function detectExternalNetworks(urlObj, params) {
-  if (!urlObj) return [];
-  const host = urlObj.hostname.toLowerCase();
-  const hits = [];
-
-  for (const net of NETWORK_SIGNATURES) {
-    const domainHit = hostMatches(host, net.hosts || []);
-    const paramHits = getPresentParams(params, net.keys || []);
-    if (domainHit || paramHits.length > 0) {
-      hits.push({
-        name: net.name,
-        confidence: net.confidence,
-        domainHit,
-        paramHits
-      });
+function tryDecodeRepeatedly(value, rounds = 3) {
+  let current = value;
+  for (let i = 0; i < rounds; i++) {
+    try {
+      const decoded = decodeURIComponent(current);
+      if (decoded === current) break;
+      current = decoded;
+    } catch {
+      break;
     }
   }
-
-  const utmSource = String(params.utm_source || "").toLowerCase();
-  const utmMedium = String(params.utm_medium || "").toLowerCase();
-  const utmCampaign = String(params.utm_campaign || "").toLowerCase();
-  const utmContent = String(params.utm_content || "").toLowerCase();
-
-  const inferred = [];
-  const push = (name) => {
-    if (!inferred.includes(name)) inferred.push(name);
-  };
-
-  detectNetworkFromText(utmSource, push);
-  detectNetworkFromText(utmMedium, push);
-  detectNetworkFromText(utmCampaign, push);
-  detectNetworkFromText(utmContent, push);
-
-  inferred.forEach((name) => {
-    const existing = hits.find((x) => x.name === name);
-    if (!existing) {
-      hits.push({
-        name,
-        confidence: 78,
-        domainHit: false,
-        paramHits: ["utm_inference"]
-      });
-    }
-  });
-
-  return hits;
+  return current;
 }
 
-function detectAmazon(urlObj, params) {
-  if (!urlObj) return null;
-
-  const hostname = urlObj.hostname.toLowerCase();
-  const isAmazon = hostMatches(hostname, AMAZON_HOSTS);
-  if (!isAmazon) return null;
-
-  const isStoreOrProductPath = pathIncludes(urlObj.pathname, AMAZON_STORE_PATHS);
-
-  const attributionKeys = ["aa_campaignid", "aa_adgroupid", "aa_creativeid", "maas"];
-  const attributionPresent = getPresentParams(params, attributionKeys);
-  const attributionRef = String(params.ref_ || "").toLowerCase().includes("aa_");
-  const hasAttribution = attributionPresent.length > 0 || attributionRef;
-
-  if (hasAttribution) {
-    const signals = attributionPresent.map((k) => `param:${k}`);
-    if (attributionRef) signals.push("ref_:aa_*");
-    if (isStoreOrProductPath) signals.push("amazon_store_or_product_path");
-
-    return {
-      platform: "Amazon",
-      type: "Amazon Attribution",
-      subtype: "Off-Amazon measurement / attribution",
-      verdict: "High-confidence Amazon Attribution link",
-      confidenceScore:
-        attributionPresent.length >= 2 || (attributionPresent.length >= 1 && attributionRef) ? 96 : 92,
-      signals,
-      explanation:
-        "This URL was classified as Amazon Attribution because it includes Amazon Ads measurement signals such as aa_campaignid, aa_adgroupid, aa_creativeid, maas, or an aa_* ref_ value.",
-      matchedLayers: ["Amazon Attribution"]
-    };
-  }
-
-  if (Object.prototype.hasOwnProperty.call(params, "tag")) {
-    const signals = ["param:tag"];
-    let subtype = "Special Link / tracking ID";
-
-    if (Object.prototype.hasOwnProperty.call(params, "ascsubtag")) {
-      subtype = "Associates + subtag tracking";
-      signals.push("param:ascsubtag");
-    }
-
-    if (params.linkcode) signals.push(`linkCode:${params.linkcode}`);
-    if (params.camp) signals.push("param:camp");
-    if (params.creative) signals.push("param:creative");
-    if (isStoreOrProductPath) signals.push("amazon_store_or_product_path");
-
-    return {
-      platform: "Amazon",
-      type: "Amazon Associates",
-      subtype,
-      verdict: "High-confidence Amazon Associates link",
-      confidenceScore: 95,
-      signals,
-      explanation:
-        "This URL was classified as Amazon Associates because it contains the tag parameter, which is the strongest public signal for an Amazon Associates tracking ID.",
-      matchedLayers: ["Amazon Associates", ...(params.ascsubtag ? ["Amazon Subtag Tracking"] : [])]
-    };
-  }
-
-  let accScore = 0;
-  const accSignals = [];
-
-  if (Object.prototype.hasOwnProperty.call(params, "campaignid")) {
-    accScore += 3;
-    accSignals.push("param:campaignId");
-  }
-
-  if (Object.prototype.hasOwnProperty.call(params, "linkid")) {
-    accScore += 2;
-    accSignals.push("param:linkId");
-  }
-
-  if ((params.linkcode || "").toLowerCase() === "tr1") {
-    accScore += 3;
-    accSignals.push("linkCode:tr1");
-  }
-
-  if (Object.prototype.hasOwnProperty.call(params, "creatorid")) {
-    accScore += 2;
-    accSignals.push("param:creatorId");
-  }
-
-  if (pathIncludes(urlObj.pathname, ["/creator", "/creators", "/influencer"])) {
-    accScore += 1;
-    accSignals.push("path:creator-context");
-  }
-
-  if (Object.prototype.hasOwnProperty.call(params, "ascsubtag")) {
-    accScore += 0.5;
-    accSignals.push("param:ascsubtag(weak)");
-  }
-
-  if (isStoreOrProductPath) {
-    accSignals.push("amazon_store_or_product_path");
-  }
-
-  if (accScore >= 6) {
-    return {
-      platform: "Amazon",
-      type: "Amazon Creator Connections",
-      subtype: "High-confidence creator campaign link",
-      verdict: "Likely ACC link (high confidence)",
-      confidenceScore: 90,
-      signals: accSignals,
-      explanation:
-        "This URL was classified as Amazon Creator Connections because it shows multiple creator-campaign style signals without a tag parameter that would indicate Amazon Associates.",
-      matchedLayers: ["Amazon Creator Connections"]
-    };
-  }
-
-  if (accScore >= 4) {
-    return {
-      platform: "Amazon",
-      type: "Amazon Creator Connections",
-      subtype: "Possible creator campaign link",
-      verdict: "Possible ACC link (medium confidence)",
-      confidenceScore: 78,
-      signals: accSignals,
-      explanation:
-        "This URL shows creator-campaign style signals consistent with Amazon Creator Connections, but the signal set is not strong enough to treat it as definitive without manual review.",
-      matchedLayers: ["Amazon Creator Connections"]
-    };
-  }
-
-  if (accScore >= 2.5) {
-    return {
-      platform: "Amazon",
-      type: "Amazon Creator Connections",
-      subtype: "Weak creator-campaign signal",
-      verdict: "Weak ACC signal; manual review recommended",
-      confidenceScore: 64,
-      signals: accSignals,
-      explanation:
-        "This URL contains some weak creator-style signals, but not enough to reliably distinguish it from other Amazon campaign or wrapped-link formats.",
-      matchedLayers: ["Amazon Creator Connections"]
-    };
-  }
-
-  return {
-    platform: "Amazon",
-    type: "Amazon Link",
-    subtype: isStoreOrProductPath ? "Store / product / search path" : "Unknown",
-    verdict: "Amazon URL detected, but no clear affiliate / attribution pattern",
-    confidenceScore: isStoreOrProductPath ? 42 : 38,
-    signals: isStoreOrProductPath ? ["amazon_store_or_product_path"] : [],
-    explanation:
-      "This is an Amazon URL, but it does not expose strong public signals for Amazon Attribution, Amazon Associates, or Creator Connections.",
-    matchedLayers: ["Amazon"]
-  };
-}
-
-function detectWalmart(urlObj, params) {
-  if (!urlObj) return null;
-
-  const hostname = urlObj.hostname.toLowerCase();
-  const isWalmart = hostMatches(hostname, WALMART_HOSTS);
-  if (!isWalmart) return null;
-
-  const hasImpactSignal =
-    Object.prototype.hasOwnProperty.call(params, "irgwc") ||
-    Object.prototype.hasOwnProperty.call(params, "clickid") ||
-    String(params.sourceid || "").toLowerCase().startsWith("imp_") ||
-    String(params.wmlspartner || "").toLowerCase().startsWith("imp_");
-
-  const hasWalmartAffiliateSignal =
-    Object.prototype.hasOwnProperty.call(params, "wmlspartner") ||
-    Object.prototype.hasOwnProperty.call(params, "affiliates_ad_id") ||
-    Object.prototype.hasOwnProperty.call(params, "campaign_id") ||
-    Object.prototype.hasOwnProperty.call(params, "veh") ||
-    Object.prototype.hasOwnProperty.call(params, "afsrc");
-
-  if (hasImpactSignal && hasWalmartAffiliateSignal) {
-    return {
-      platform: "Walmart",
-      type: "Impact Affiliate",
-      subtype: "Retailer affiliate landing page",
-      verdict: "High-confidence Walmart affiliate link via Impact",
-      confidenceScore: 95,
-      signals: [
-        ...(params.irgwc ? ["param:irgwc"] : []),
-        ...(params.clickid ? ["param:clickid"] : []),
-        ...(params.sourceid ? ["param:sourceid"] : []),
-        ...(params.wmlspartner ? ["param:wmlspartner"] : []),
-        ...(params.affiliates_ad_id ? ["param:affiliates_ad_id"] : []),
-        ...(params.campaign_id ? ["param:campaign_id"] : []),
-        ...(params.veh ? ["param:veh"] : []),
-        ...(params.afsrc ? ["param:afsrc"] : [])
-      ],
-      explanation:
-        "This URL was classified as a Walmart affiliate link because it lands on Walmart and includes Walmart partner fields together with Impact-style affiliate identifiers such as irgwc, clickid, or imp_-prefixed source values.",
-      matchedLayers: ["Walmart", "Impact", "Affiliate Traffic"]
-    };
-  }
-
-  if (hasWalmartAffiliateSignal) {
-    return {
-      platform: "Walmart",
-      type: "Walmart Affiliate",
-      subtype: "Retailer affiliate landing page",
-      verdict: "Likely Walmart affiliate link",
-      confidenceScore: 88,
-      signals: [
-        ...(params.wmlspartner ? ["param:wmlspartner"] : []),
-        ...(params.affiliates_ad_id ? ["param:affiliates_ad_id"] : []),
-        ...(params.campaign_id ? ["param:campaign_id"] : []),
-        ...(params.veh ? ["param:veh"] : []),
-        ...(params.afsrc ? ["param:afsrc"] : [])
-      ],
-      explanation:
-        "This URL was classified as a Walmart affiliate link because it lands on Walmart and includes Walmart affiliate partner parameters.",
-      matchedLayers: ["Walmart", "Affiliate Traffic"]
-    };
-  }
-
-  return {
-    platform: "Walmart",
-    type: "Walmart Link",
-    subtype: "Retail product page",
-    verdict: "Walmart URL detected, but no clear affiliate pattern",
-    confidenceScore: 40,
-    signals: [],
-    explanation:
-      "This is a Walmart URL, but it does not expose strong affiliate identifiers.",
-    matchedLayers: ["Walmart"]
-  };
-}
-
-function getBestExternalAcrossChain(chain) {
-  const hits = [];
-
-  chain.forEach((node) => {
-    const networks = detectExternalNetworks(node.urlObj, node.params);
-    networks.forEach((net) => {
-      hits.push({
-        name: net.name,
-        confidence: net.confidence,
-        domainHit: net.domainHit,
-        paramHits: [...net.paramHits]
-      });
-    });
-  });
-
-  return dedupeObjectsByName(hits).sort((a, b) => b.confidence - a.confidence);
-}
-
-function getBestAmazonAcrossChain(chain) {
-  for (let i = chain.length - 1; i >= 0; i--) {
-    const node = chain[i];
-    const amazon = detectAmazon(node.urlObj, node.params);
-    if (amazon) {
-      return { result: amazon, node };
-    }
-  }
-  return null;
-}
-
-function getBestWalmartAcrossChain(chain) {
-  for (let i = chain.length - 1; i >= 0; i--) {
-    const node = chain[i];
-    const walmart = detectWalmart(node.urlObj, node.params);
-    if (walmart) {
-      return { result: walmart, node };
-    }
-  }
-  return null;
-}
-
-function buildCompositeClassification(chain) {
-  const firstNode = chain[0];
-  const bestAmazon = getBestAmazonAcrossChain(chain);
-  const bestWalmart = getBestWalmartAcrossChain(chain);
-  const externalHits = getBestExternalAcrossChain(chain);
-  const primaryExternal = externalHits.length ? externalHits[0] : null;
-
-  if (bestWalmart) {
-    return {
-      title: bestWalmart.result.type === "Impact Affiliate"
-        ? "Walmart (Impact Affiliate)"
-        : bestWalmart.result.type,
-      platform: bestWalmart.result.platform,
-      type: bestWalmart.result.type,
-      subtype: bestWalmart.result.subtype,
-      verdict: bestWalmart.result.verdict,
-      confidenceScore: bestWalmart.result.confidenceScore,
-      signals: bestWalmart.result.signals,
-      explanation: bestWalmart.result.explanation,
-      matchedLayers: dedupe(
-        bestWalmart.result.matchedLayers.concat(primaryExternal ? [primaryExternal.name] : [])
-      ),
-      amazonRules: [],
-      domain: firstNode?.urlObj?.hostname || "—"
-    };
-  }
-
-  if (bestAmazon && bestAmazon.result.type === "Amazon Attribution" && primaryExternal) {
-    const signals = [
-      ...primaryExternal.paramHits.map((k) => `param:${k}`),
-      ...(primaryExternal.domainHit ? [`network:${primaryExternal.name}`] : []),
-      ...bestAmazon.result.signals
-    ];
-
-    return {
-      title: `${primaryExternal.name} (Amazon Attribution)`,
-      platform: primaryExternal.name,
-      type: "Amazon Attribution",
-      subtype: bestAmazon.result.subtype,
-      verdict: bestAmazon.result.verdict,
-      confidenceScore: Math.max(bestAmazon.result.confidenceScore, primaryExternal.confidence),
-      signals: dedupe(signals),
-      explanation:
-        `This URL shows both an external affiliate-network signature and Amazon Attribution measurement parameters across the redirect chain. It is therefore classified as ${primaryExternal.name} (Amazon Attribution).`,
-      matchedLayers: dedupe([primaryExternal.name, ...bestAmazon.result.matchedLayers]),
-      amazonRules: getAmazonRulePanel(bestAmazon.node.urlObj, bestAmazon.node.params),
-      domain: firstNode?.urlObj?.hostname || "—"
-    };
-  }
-
-  if (bestAmazon) {
-    return {
-      title: bestAmazon.result.type,
-      platform: bestAmazon.result.platform,
-      type: bestAmazon.result.type,
-      subtype: bestAmazon.result.subtype,
-      verdict: bestAmazon.result.verdict,
-      confidenceScore: bestAmazon.result.confidenceScore,
-      signals: bestAmazon.result.signals,
-      explanation: bestAmazon.result.explanation,
-      matchedLayers: dedupe(
-        bestAmazon.result.matchedLayers.concat(primaryExternal ? [primaryExternal.name] : [])
-      ),
-      amazonRules: getAmazonRulePanel(bestAmazon.node.urlObj, bestAmazon.node.params),
-      domain: firstNode?.urlObj?.hostname || "—"
-    };
-  }
-
-  if (primaryExternal) {
-    const signals = [
-      ...(primaryExternal.domainHit ? [`network:${primaryExternal.name}`] : []),
-      ...primaryExternal.paramHits.map((k) => `param:${k}`)
-    ];
-
-    return {
-      title: primaryExternal.name,
-      platform: primaryExternal.name,
-      type: primaryExternal.name,
-      subtype: "Affiliate Network",
-      verdict: `${primaryExternal.name} detected`,
-      confidenceScore: primaryExternal.confidence,
-      signals: dedupe(signals),
-      explanation:
-        `This URL was matched to ${primaryExternal.name} because its domain or parameter structure matches the known network signature library across the redirect chain.`,
-      matchedLayers: [primaryExternal.name],
-      amazonRules: [],
-      domain: firstNode?.urlObj?.hostname || "—"
-    };
-  }
-
-  return {
-    title: "Unknown",
-    platform: "Unknown",
-    type: "Unknown",
-    subtype: "No signature matched",
-    verdict: "No known affiliate / attribution pattern detected",
-    confidenceScore: 18,
-    signals: [],
-    explanation:
-      "No signature in the current detection library matched this URL or the resolved redirect-chain targets.",
-    matchedLayers: [],
-    amazonRules: [],
-    domain: firstNode?.urlObj?.hostname || "—"
-  };
-}
-
-function detectMixedSignals(classification, trafficSources) {
-  const warnings = [];
-  const layers = classification.matchedLayers || [];
-
-  if (layers.includes("Amazon Attribution") && layers.includes("Amazon Associates")) {
-    warnings.push("Amazon Attribution and Amazon Associates signals both appear. This may indicate layered tracking or a mixed measurement setup.");
-  }
-
-  if (
-    layers.includes("Amazon Attribution") &&
-    layers.some((x) => x !== "Amazon Attribution" && x !== "Amazon" && !x.startsWith("Amazon "))
-  ) {
-    warnings.push("An external affiliate-network signature appears alongside Amazon Attribution. This is often a wrapped redirect or measurement handoff flow.");
-  }
-
-  if (layers.includes("Amazon Creator Connections") && layers.includes("Amazon Associates")) {
-    warnings.push("Amazon Associates and ACC-style signals both appear. In public links, tag= should generally take precedence over ACC heuristics.");
-  }
-
-  if ((trafficSources || []).length) {
-    warnings.push(`Paid traffic identifiers were also detected: ${trafficSources.join(", ")}.`);
-  }
-
-  return warnings;
-}
-
-function inferPublisherFromTag(tag) {
-  if (!tag) return null;
-  const t = String(tag).toLowerCase();
-
-  if (t.includes("slickdeals")) return "Slickdeals";
-  if (t.includes("dealnews")) return "DealNews";
-  if (t.includes("forbes")) return "Forbes";
-  if (t.includes("cnn")) return "CNN";
-  if (t.includes("nymag")) return "New York Magazine";
-  if (t.includes("wirecutter")) return "Wirecutter";
-
-  return null;
-}
-
-function buildCommissionEngine(classification, params, matchedLayers, trafficSources) {
-  const layers = matchedLayers || [];
-  const type = classification?.type || "Unknown";
-  const tag = params?.tag || null;
-  const publisher = inferPublisherFromTag(tag);
-
-  const result = {
-    payout_model: "unknown",
-    commission_owner: "Unknown",
-    attribution_owner: "Unknown",
-    publisher_owner: publisher,
-    network_owner: null,
-    assist_layers: [],
-    override_risk: "low",
-    override_reasons: [],
-    payout_confidence: 50,
-    summary: "Unable to determine commission ownership confidently."
-  };
-
-  if (type === "Amazon Associates") {
-    result.payout_model = "affiliate_commission";
-    result.commission_owner = publisher
-      ? `Amazon Associates publisher (${publisher})`
-      : "Amazon Associates publisher";
-    result.attribution_owner = "Amazon Associates";
-    result.publisher_owner = publisher;
-    result.payout_confidence = 94;
-    result.summary = publisher
-      ? `Likely Amazon Associates commission to the publisher tied to tag=${tag}.`
-      : "Likely Amazon Associates commission to the publisher tied to the tag parameter.";
-
-    if (params?.ascsubtag) {
-      result.assist_layers.push("Subtag Tracking");
-    }
-  }
-
-  if (type === "Amazon Attribution") {
-    result.payout_model = "measurement_only";
-    result.commission_owner = "No direct affiliate commission visible";
-    result.attribution_owner = "Amazon Attribution";
-    result.payout_confidence = 88;
-    result.summary = "This link most likely supports attribution measurement rather than direct affiliate payout.";
-
-    if ((trafficSources || []).length) {
-      result.assist_layers.push(...trafficSources);
-    }
-
-    const nonAmazonLayers = layers.filter(
-      (x) => x !== "Amazon Attribution" && x !== "Amazon" && !String(x).startsWith("Amazon ")
-    );
-
-    if (nonAmazonLayers.length) {
-      result.assist_layers.push(...nonAmazonLayers);
-      result.override_risk = "medium";
-      result.override_reasons.push("Affiliate or intermediary layer present before attribution layer.");
-    }
-  }
-
-  if (type === "Amazon Creator Connections") {
-    result.payout_model = "creator_bonus_or_campaign";
-    result.commission_owner = "Creator campaign participant";
-    result.attribution_owner = "Amazon Creator Connections";
-    result.payout_confidence = 78;
-    result.summary = "This link most likely belongs to a creator campaign or bonus-commission style flow.";
-  }
-
-  if (classification?.platform === "Walmart" && type === "Impact Affiliate") {
-    result.payout_model = "affiliate_commission";
-    result.commission_owner = "Impact publisher on Walmart";
-    result.attribution_owner = "Impact";
-    result.network_owner = "Impact";
-    result.assist_layers.push("Walmart Affiliate Program");
-    result.payout_confidence = 95;
-    result.summary = "Likely Walmart affiliate commission routed through Impact.";
-  }
-
-  if (classification?.platform === "Walmart" && type === "Walmart Affiliate") {
-    result.payout_model = "affiliate_commission";
-    result.commission_owner = "Walmart affiliate publisher";
-    result.attribution_owner = "Walmart Affiliate";
-    result.payout_confidence = 88;
-    result.summary = "Likely Walmart affiliate payout.";
-  }
-
-  if (layers.includes("Skimlinks")) {
-    result.assist_layers.push("Skimlinks");
-  }
-  if (layers.includes("Sovrn Commerce")) {
-    result.assist_layers.push("Sovrn Commerce");
-  }
-  if (layers.includes("Impact") && result.network_owner !== "Impact" && type !== "Impact Affiliate") {
-    result.assist_layers.push("Impact");
-  }
-
-  const hasAmazonAttribution = layers.includes("Amazon Attribution");
-  const hasAmazonAssociates = layers.includes("Amazon Associates");
-  const affiliateNetworks = layers.filter((x) =>
-    [
-      "Impact","CJ Affiliate","Awin","ShareASale","Rakuten Advertising","Partnerize / Pepperjam",
-      "Pepperjam","PartnerStack","PartnerBoost","Levanta","Archer Affiliates","Skimlinks",
-      "Sovrn Commerce","Webgains","TradeDoubler","TradeTracker","Refersion","UpPromote","GoAffPro"
-    ].includes(x)
-  );
-
-  if (hasAmazonAttribution && hasAmazonAssociates) {
-    result.override_risk = "high";
-    result.override_reasons.push("Amazon Attribution and Amazon Associates both detected.");
-  } else if (affiliateNetworks.length > 1) {
-    result.override_risk = "high";
-    result.override_reasons.push("Multiple affiliate/intermediary networks detected.");
-  } else if (affiliateNetworks.length === 1 && hasAmazonAttribution) {
-    result.override_risk = "medium";
-    result.override_reasons.push("Affiliate network present with Amazon Attribution.");
-  }
-
-  result.assist_layers = dedupe(result.assist_layers.filter(Boolean));
-  return result;
-}
-
-async function fetchWithManualRedirect(url, method = "HEAD") {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(url, {
-      method,
-      redirect: "manual",
-      signal: controller.signal,
-      headers: {
-        "user-agent": "BrandShuo-Attribution-Intelligence/2.0"
+function extractWrappedDestinations(rawUrl, depth = MAX_WRAPPED_DEPTH) {
+  const found = [];
+  let current = rawUrl;
+
+  for (let i = 0; i < depth; i++) {
+    const u = getUrlObject(current);
+    if (!u) break;
+
+    let next = null;
+
+    for (const key of WRAPPED_KEYS) {
+      const value = u.searchParams.get(key);
+      if (value) {
+        const decoded = tryDecodeRepeatedly(value);
+        if (/^https?:\/\//i.test(decoded)) {
+          next = decoded;
+          break;
+        }
       }
+    }
+
+    if (!next) break;
+    found.push(next);
+    current = next;
+  }
+
+  return found;
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal
     });
-    return response;
   } finally {
     clearTimeout(timeout);
   }
 }
 
-function resolveRedirectUrl(currentUrl, locationHeader) {
-  try {
-    return new URL(locationHeader, currentUrl).toString();
-  } catch {
-    return null;
-  }
-}
-
-async function expandHttpRedirectChain(inputUrl, maxRedirects = MAX_HTTP_REDIRECTS) {
+async function resolveHttpRedirects(inputUrl) {
   const chain = [inputUrl];
-  const visited = new Set([inputUrl]);
-  let currentUrl = inputUrl;
-  let finalUrl = inputUrl;
-  let stoppedReason = "final";
+  let current = inputUrl;
 
-  for (let i = 0; i < maxRedirects; i++) {
+  for (let i = 0; i < MAX_HTTP_REDIRECTS; i++) {
     let response;
-
     try {
-      response = await fetchWithManualRedirect(currentUrl, "HEAD");
-    } catch {
-      try {
-        response = await fetchWithManualRedirect(currentUrl, "GET");
-      } catch {
-        stoppedReason = "network_error";
-        break;
-      }
-    }
-
-    const status = response.status;
-    const locationHeader = response.headers.get("location");
-
-    if (status >= 300 && status < 400 && locationHeader) {
-      const nextUrl = resolveRedirectUrl(currentUrl, locationHeader);
-      if (!nextUrl) {
-        stoppedReason = "invalid_location";
-        break;
-      }
-
-      if (visited.has(nextUrl)) {
-        stoppedReason = "redirect_loop";
-        finalUrl = nextUrl;
-        chain.push(nextUrl);
-        break;
-      }
-
-      visited.add(nextUrl);
-      chain.push(nextUrl);
-      currentUrl = nextUrl;
-      finalUrl = nextUrl;
-      continue;
-    }
-
-    finalUrl = currentUrl;
-    stoppedReason = "final";
-    break;
-  }
-
-  if (chain.length - 1 >= maxRedirects) {
-    stoppedReason = "max_redirects_reached";
-  }
-
-  return {
-    finalUrl,
-    chain,
-    stoppedReason
-  };
-}
-
-function expandWrappedChain(urls, maxDepth = MAX_WRAPPED_DEPTH) {
-  const out = [...urls];
-  const visited = new Set(out);
-
-  for (let depth = 0; depth < maxDepth; depth++) {
-    const current = out[out.length - 1];
-    const urlObj = getUrlObject(current);
-    if (!urlObj) break;
-
-    let nextUrl = null;
-
-    for (const key of WRAPPED_KEYS) {
-      const v = urlObj.searchParams.get(key);
-      if (!v) continue;
-
-      const decoded = (() => {
-        try {
-          return decodeURIComponent(v);
-        } catch {
-          return v;
+      response = await fetchWithTimeout(current, {
+        method: "GET",
+        redirect: "manual",
+        headers: {
+          "user-agent": "BrandShuo Attribution Checker/2.0"
         }
-      })();
-
-      if (/^https?:\/\//i.test(decoded)) {
-        nextUrl = decoded;
-        break;
-      }
+      });
+    } catch {
+      break;
     }
 
-    if (!nextUrl || visited.has(nextUrl)) break;
-    visited.add(nextUrl);
-    out.push(nextUrl);
+    const location = response.headers.get("location");
+    const isRedirect = response.status >= 300 && response.status < 400;
+
+    if (!isRedirect || !location) break;
+
+    const nextUrl = new URL(location, current).toString();
+    chain.push(nextUrl);
+    current = nextUrl;
   }
 
-  return out;
+  return chain;
 }
 
-async function buildResolvedChain(inputUrl) {
-  const httpMeta = await expandHttpRedirectChain(inputUrl, MAX_HTTP_REDIRECTS);
-  const urlsAfterHttp = httpMeta.chain && httpMeta.chain.length ? httpMeta.chain : [inputUrl];
-  const fullUrls = expandWrappedChain(urlsAfterHttp, MAX_WRAPPED_DEPTH);
+function detectNetworkCandidates(urls = []) {
+  const rawHits = [];
 
-  const chain = fullUrls
-    .map((raw, index) => {
-      const urlObj = getUrlObject(raw);
-      return {
-        step: index + 1,
-        raw,
-        urlObj,
-        params: normalizeKeys(extractParamsFromUrl(raw))
-      };
-    })
-    .filter((x) => x.urlObj);
+  urls.forEach((rawUrl) => {
+    const u = getUrlObject(rawUrl);
+    if (!u) return;
 
-  return {
-    stoppedReason: httpMeta.stoppedReason,
-    finalUrl: chain.length ? chain[chain.length - 1].raw : inputUrl,
-    chain
-  };
+    const hostname = u.hostname.toLowerCase();
+    const params = extractParamsFromUrl(rawUrl);
+
+    NETWORK_SIGNATURES.forEach((sig) => {
+      const domainHit = hostMatches(hostname, sig.hosts);
+      const paramHits = getPresentParams(params, sig.keys);
+
+      if (domainHit || paramHits.length) {
+        rawHits.push({
+          name: sig.name,
+          confidence: sig.confidence,
+          domainHit,
+          paramHits
+        });
+      }
+    });
+
+    ["utm_source", "utm_medium", "utm_campaign", "source", "medium", "campaign", "ref", "origin"].forEach((key) => {
+      if (params[key]) {
+        detectNetworkFromText(params[key], (network) => {
+          rawHits.push({
+            name: network,
+            confidence: 72,
+            domainHit: false,
+            paramHits: [key]
+          });
+        });
+      }
+    });
+  });
+
+  return dedupeObjectsByName(rawHits).sort((a, b) => b.confidence - a.confidence);
 }
 
-function buildNotes(classification, chain) {
+function detectTrafficSources(params = {}) {
+  const hits = [];
+
+  const sourceFields = [
+    params.utm_source,
+    params.utm_medium,
+    params.utm_campaign,
+    params.source,
+    params.medium,
+    params.campaign,
+    params.ref,
+    params.origin
+  ].filter(Boolean);
+
+  sourceFields.forEach((v) => {
+    const lower = String(v).toLowerCase();
+    if (/facebook|meta|ig|instagram/.test(lower)) hits.push("Meta");
+    if (/tiktok/.test(lower)) hits.push("TikTok");
+    if (/google|gclid|adwords|search/.test(lower)) hits.push("Google");
+    if (/youtube/.test(lower)) hits.push("YouTube");
+    if (/email|klaviyo|mailchimp/.test(lower)) hits.push("Email");
+    if (/influencer|creator|affiliate|partner/.test(lower)) hits.push("Affiliate / Creator");
+    if (/reddit/.test(lower)) hits.push("Reddit");
+    if (/pinterest/.test(lower)) hits.push("Pinterest");
+  });
+
+  if (params.gclid) hits.push("Google Ads");
+  if (params.fbclid) hits.push("Meta");
+  if (params.ttclid) hits.push("TikTok");
+
+  return dedupe(hits);
+}
+
+function detectAmazonRules(urls = [], params = {}) {
+  const rules = [];
+
+  const hasAmazonUrl = urls.some((u) => {
+    const obj = getUrlObject(u);
+    return obj && hostMatches(obj.hostname.toLowerCase(), AMAZON_HOSTS);
+  });
+
+  if (!hasAmazonUrl) return rules;
+
+  if (params.tag) rules.push("Amazon Associates tag");
+  if (params.ascsubtag) rules.push("Amazon Associates subtag");
+  if (params.aa_campaignid || params.aa_adgroupid || params.aa_creativeid) rules.push("Amazon Attribution");
+  if (params.maas) rules.push("Amazon Creator Connections / Amazon internal campaign hint");
+  if (params.ref_ || params.linkcode || params.language) rules.push("Amazon merchandising params");
+  if (params.smid || params.content_id) rules.push("Amazon creator/content tracking hint");
+
+  const urlWithStore = urls.find((u) => {
+    const obj = getUrlObject(u);
+    return obj && pathIncludes(obj.pathname, AMAZON_STORE_PATHS);
+  });
+
+  if (urlWithStore) rules.push("Amazon product/store path detected");
+
+  return dedupe(rules);
+}
+
+function classifyUrl(urls = [], networkCandidates = [], amazonRules = [], trafficSources = []) {
+  const allUrls = urls.map((u) => getUrlObject(u)).filter(Boolean);
+  const final = allUrls[allUrls.length - 1] || null;
+  const hostname = final ? final.hostname.toLowerCase() : "";
+
+  const matchedLayers = [];
+  const signals = [];
+  const risks = [];
   const notes = [];
 
-  if (
-    classification.type === "Amazon Associates" &&
-    classification.signals.some((s) => s.includes("camp") || s.includes("creative"))
-  ) {
-    notes.push("Amazon legacy affiliate parameters detected.");
-  }
+  networkCandidates.forEach((n) => matchedLayers.push(n.name));
+  amazonRules.forEach((r) => signals.push(r));
+  trafficSources.forEach((t) => signals.push(`Traffic: ${t}`));
 
-  if (
-    classification.type === "Amazon Attribution" &&
-    classification.matchedLayers.some((x) => x !== "Amazon Attribution" && !x.startsWith("Amazon "))
-  ) {
-    notes.push("External affiliate network and Amazon Attribution were both detected across the chain.");
-  }
+  let platform = "Unknown";
+  let type = "Unknown";
+  let subtype = "Unknown";
+  let verdict = "Unclear";
+  let title = "Unknown Link Type";
+  let explanation = "The tool could not confidently determine the attribution type.";
+  let confidenceScore = 40;
 
-  if (classification.platform === "Walmart" && classification.type === "Impact Affiliate") {
-    notes.push("Walmart partner fields and Impact-style click markers were both detected.");
-  }
+  const finalParams = final ? extractParamsFromUrl(final.toString()) : {};
+  const mergedParams = urls
+    .map((u) => extractParamsFromUrl(u))
+    .reduce((acc, item) => mergeObjectsPreferringFirst(acc, item), {});
 
-  if (chain.length > 1) {
-    notes.push(`Redirect chain analyzed across ${chain.length} hop(s).`);
-  }
+  const topNetwork = networkCandidates[0]?.name || null;
 
-  return notes;
-}
+  if (hostname && hostMatches(hostname, AMAZON_HOSTS)) {
+    platform = "Amazon";
 
-function buildFlowNodes(result) {
-  const nodes = [];
-  const traffic = result.traffic_sources || [];
-  const layers = result.matched_layers || [];
-  const ce = result.commission_engine || {};
-
-  traffic.forEach((t) => {
-    nodes.push({ label: t, type: "traffic" });
-  });
-
-  layers.forEach((layer) => {
-    if (!String(layer).includes("Amazon")) {
-      nodes.push({ label: layer, type: "network" });
+    if (mergedParams.aa_campaignid || mergedParams.aa_adgroupid || mergedParams.aa_creativeid) {
+      type = "Amazon Attribution";
+      subtype = "Brand / Seller paid media attribution";
+      verdict = "Brand-owned attribution likely";
+      title = "Amazon Attribution";
+      explanation = "Amazon Attribution parameters were detected. This usually means the seller or brand is measuring off-Amazon traffic performance rather than sending payout through a classic publisher affiliate tag.";
+      confidenceScore = 95;
+      matchedLayers.push("Amazon Attribution");
+    } else if (mergedParams.tag) {
+      type = "Amazon Associates";
+      subtype = "Publisher affiliate link";
+      verdict = "Publisher commission likely";
+      title = "Amazon Associates";
+      explanation = "An Amazon Associates tracking tag was detected. This usually indicates a publisher, creator, or affiliate partner is eligible for commission credit.";
+      confidenceScore = 96;
+      matchedLayers.push("Amazon Associates");
+    } else if (mergedParams.maas || mergedParams.smid || mergedParams.content_id) {
+      type = "Amazon Creator Connections";
+      subtype = "Creator / influencer assist layer";
+      verdict = "Creator-linked attribution possible";
+      title = "Amazon Creator Connections";
+      explanation = "Creator-oriented Amazon parameters were detected. This pattern suggests creator or influencer tracking rather than a standard Associates-only link.";
+      confidenceScore = 85;
+      matchedLayers.push("Amazon Creator Connections");
+    } else {
+      type = "Amazon";
+      subtype = "Generic Amazon destination";
+      verdict = "Amazon destination detected";
+      title = "Amazon Link";
+      explanation = "The link resolves to an Amazon destination, but no explicit Amazon affiliate or attribution parameter was strongly identified.";
+      confidenceScore = 72;
     }
-  });
-
-  if (ce.attribution_owner && ce.attribution_owner !== "Unknown") {
-    nodes.push({ label: ce.attribution_owner, type: "attribution" });
-  } else if (result.classification?.type) {
-    nodes.push({ label: result.classification.type, type: "classification" });
-  }
-
-  nodes.push({
-    label: result.hostname || "Destination",
-    type: "final"
-  });
-
-  const cleaned = [];
-  const seen = new Set();
-
-  for (const node of nodes) {
-    const key = `${node.type}:${node.label}`;
-    if (!seen.has(key)) {
-      cleaned.push(node);
-      seen.add(key);
+  } else if (hostname && hostMatches(hostname, WALMART_HOSTS)) {
+    platform = "Walmart";
+    title = "Walmart Affiliate / Attribution";
+    if (mergedParams.wmlspartner || mergedParams.affiliates_ad_id || mergedParams.campaign_id) {
+      type = "Walmart Affiliate";
+      subtype = "Publisher affiliate link";
+      verdict = "Publisher commission likely";
+      explanation = "Walmart affiliate parameters were detected, which strongly indicates publisher or partner commission tracking.";
+      confidenceScore = 92;
+      matchedLayers.push("Walmart");
+    } else {
+      type = "Walmart";
+      subtype = "Generic Walmart destination";
+      verdict = "Walmart destination detected";
+      explanation = "The link resolves to Walmart, though explicit affiliate parameters were not strongly detected.";
+      confidenceScore = 74;
     }
+  } else if (topNetwork) {
+    platform = topNetwork;
+    type = "Affiliate Network Redirect";
+    subtype = "Network tracking layer";
+    verdict = "Affiliate layer detected";
+    title = `${topNetwork} Redirect`;
+    explanation = `The URL contains one or more signatures associated with ${topNetwork}. This usually means the link is passing through an affiliate network tracking layer before reaching the final merchant.`;
+    confidenceScore = Math.max(78, networkCandidates[0].confidence);
+  } else if (trafficSources.length) {
+    platform = "Traffic Tagged Link";
+    type = "Tagged traffic link";
+    subtype = "UTM / paid or organic source markers";
+    verdict = "Traffic source tagging detected";
+    title = "Traffic-Tagged URL";
+    explanation = "Traffic source markers such as UTM-style parameters were detected, but a direct affiliate network signature was not strongly confirmed.";
+    confidenceScore = 68;
   }
 
-  return cleaned;
-}
+  if (networkCandidates.length > 1) {
+    risks.push("Multiple affiliate or attribution layers detected.");
+  }
 
-async function analyzeUrl(inputUrl) {
-  const urlObj = getUrlObject(inputUrl);
-  if (!urlObj) return null;
+  if (
+    matchedLayers.includes("Amazon Attribution") &&
+    matchedLayers.includes("Amazon Associates")
+  ) {
+    risks.push("Amazon Attribution and Amazon Associates appeared together. Commission ownership may be mixed or overridden depending on implementation.");
+    notes.push("This can indicate a brand measurement layer plus a publisher monetization layer.");
+  }
 
-  const resolved = await buildResolvedChain(inputUrl);
-  const chain = resolved.chain;
-  const classification = buildCompositeClassification(chain);
+  if (
+    matchedLayers.includes("Skimlinks") ||
+    matchedLayers.includes("Sovrn Commerce")
+  ) {
+    notes.push("Commerce content monetization layer detected. This may act as an intermediary before the merchant destination.");
+  }
 
-  const mergedParams = mergeObjectsPreferringFirst(
-    ...chain.map((node) => node.params).reverse()
-  );
-
-  const trafficSources = dedupe(
-    chain.flatMap((node) => detectTrafficSources(node.params))
-  );
-
-  const mixedWarnings = detectMixedSignals(classification, trafficSources);
-  const notes = buildNotes(classification, chain);
-  const commissionEngine = buildCommissionEngine(
-    classification,
-    mergedParams,
-    classification.matchedLayers || [],
-    trafficSources
-  );
-
-  const result = {
-    success: true,
-    version: "2.0",
-    input_url: inputUrl,
-    final_url: resolved.finalUrl,
-    hostname: classification.domain || urlObj.hostname,
-    redirect_chain: chain.map((x) => x.raw),
-    redirect_chain_length: chain.length,
-    redirect_status: resolved.stoppedReason,
-
-    classification,
-    commission_engine: commissionEngine,
-
-    traffic_sources: trafficSources,
-    params: mergedParams,
-    notes,
-    risks: mixedWarnings,
-    matched_layers: classification.matchedLayers || [],
-    amazon_rules: classification.amazonRules || [],
-    signals: classification.signals || []
+  return {
+    classification: {
+      platform,
+      type,
+      subtype,
+      verdict,
+      title,
+      explanation,
+      confidenceScore,
+      signals: dedupe(signals),
+      matchedLayers: dedupe(matchedLayers),
+      amazonRules: dedupe(amazonRules)
+    },
+    risks: dedupe(risks),
+    notes: dedupe(notes)
   };
-
-  result.flow_nodes = buildFlowNodes(result);
-
-  return result;
 }
 
-app.get("/health", (req, res) => {
-  res.json({ ok: true, version: "2.0" });
-});
+function buildCommissionEngine(classification, matchedLayers, trafficSources) {
+  const type = classification?.type || "";
+  const layers = matchedLayers || [];
 
-app.post("/api/analyze", async (req, res) => {
+  let payout_model = "Unknown";
+  let commission_owner = "Unknown";
+  let attribution_owner = "Unknown";
+  let publisher_owner = "Unknown";
+  let network_owner = "Unknown";
+  let payout_confidence = 55;
+  let override_risk = "low";
+  const override_reasons = [];
+  const assist_layers = [];
+
+  const nonAmazonNetworks = layers.filter((x) => !String(x).startsWith("Amazon"));
+
+  if (type === "Amazon Associates") {
+    payout_model = "Affiliate payout";
+    commission_owner = "Publisher / Creator";
+    attribution_owner = "Amazon Associates";
+    publisher_owner = "Publisher / Creator";
+    payout_confidence = 95;
+  } else if (type === "Amazon Attribution") {
+    payout_model = "Brand measurement / attribution";
+    commission_owner = "Brand / Seller";
+    attribution_owner = "Amazon Attribution";
+    publisher_owner = "Not primary payout owner";
+    payout_confidence = 95;
+  } else if (type === "Amazon Creator Connections") {
+    payout_model = "Creator assist / creator commerce";
+    commission_owner = "Creator / Influencer";
+    attribution_owner = "Amazon creator-linked flow";
+    publisher_owner = "Creator / Influencer";
+    payout_confidence = 84;
+  } else if (/Walmart Affiliate/i.test(type)) {
+    payout_model = "Affiliate payout";
+    commission_owner = "Publisher / Creator";
+    attribution_owner = "Walmart Affiliate";
+    publisher_owner = "Publisher / Creator";
+    payout_confidence = 92;
+  } else if (/Affiliate Network Redirect/i.test(type)) {
+    payout_model = "Affiliate network payout";
+    commission_owner = "Publisher / Partner";
+    attribution_owner = "Affiliate Network";
+    publisher_owner = "Publisher / Partner";
+    payout_confidence = 86;
+  }
+
+  if (nonAmazonNetworks.length) {
+    network_owner = nonAmazonNetworks[0];
+    assist_layers.push(...nonAmazonNetworks);
+  }
+
+  if (trafficSources.length) {
+    assist_layers.push(...trafficSources.map((x) => `${x} traffic`));
+  }
+
+  if (layers.includes("Amazon Attribution") && layers.includes("Amazon Associates")) {
+    override_risk = "high";
+    override_reasons.push("Amazon Attribution and Amazon Associates coexist in the same path.");
+    override_reasons.push("Measurement and payout layers may not belong to the same stakeholder.");
+    payout_confidence = Math.min(payout_confidence, 80);
+  } else if (layers.length > 1) {
+    override_risk = "medium";
+    override_reasons.push("Multiple tracking layers detected in the redirect flow.");
+  }
+
+  const summary = [
+    `Payout model: ${payout_model}.`,
+    `Likely commission owner: ${commission_owner}.`,
+    attribution_owner !== "Unknown" ? `Attribution owner: ${attribution_owner}.` : "",
+    network_owner !== "Unknown" ? `Network layer: ${network_owner}.` : "",
+    assist_layers.length ? `Assist layers: ${dedupe(assist_layers).join(", ")}.` : "",
+    override_risk !== "low" ? `Override risk: ${override_risk}.` : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return {
+    payout_model,
+    commission_owner,
+    attribution_owner,
+    publisher_owner,
+    network_owner,
+    payout_confidence,
+    assist_layers: dedupe(assist_layers),
+    override_risk,
+    override_reasons: dedupe(override_reasons),
+    summary
+  };
+}
+
+function buildFlowNodes(classification, matchedLayers, trafficSources, hostname) {
+  const nodes = [];
+
+  trafficSources.forEach((t) => nodes.push({ label: t, type: "traffic" }));
+  matchedLayers.forEach((l) => {
+    if (!String(l).includes("Amazon")) {
+      nodes.push({ label: l, type: "network" });
+    }
+  });
+
+  if (classification?.type) {
+    nodes.push({ label: classification.type, type: "classification" });
+  }
+
+  nodes.push({ label: hostname || "Destination", type: "final" });
+
+  return nodes;
+}
+
+module.exports = async function handler(req, res) {
+  setCors(res);
+
+  if (req.method === "OPTIONS") {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+
+  if (req.method === "GET") {
+    json(res, 200, {
+      success: true,
+      message: "BrandShuo analyze API is running."
+    });
+    return;
+  }
+
+  if (req.method !== "POST") {
+    json(res, 405, {
+      success: false,
+      error: "Method not allowed"
+    });
+    return;
+  }
+
   try {
-    const inputUrl = String(req.body?.url || "").trim();
+    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+    const inputUrl = String(body.url || "").trim();
 
     if (!inputUrl) {
-      return res.status(400).json({
+      json(res, 400, {
         success: false,
         error: "Missing url"
       });
+      return;
     }
 
-    const result = await analyzeUrl(inputUrl);
+    let normalizedInput = inputUrl;
+    if (!/^https?:\/\//i.test(normalizedInput)) {
+      normalizedInput = `https://${normalizedInput}`;
+    }
 
-    if (!result) {
-      return res.status(400).json({
+    const parsed = getUrlObject(normalizedInput);
+    if (!parsed) {
+      json(res, 400, {
         success: false,
         error: "Invalid URL"
       });
+      return;
     }
 
-    return res.json(result);
+    const wrappedDestinations = extractWrappedDestinations(normalizedInput, MAX_WRAPPED_DEPTH);
+    const redirectChain = await resolveHttpRedirects(normalizedInput);
+
+    const allUrls = dedupe([
+      normalizedInput,
+      ...wrappedDestinations,
+      ...redirectChain
+    ]);
+
+    const finalUrl = allUrls[allUrls.length - 1] || normalizedInput;
+    const finalObj = getUrlObject(finalUrl);
+    const hostname = finalObj?.hostname || parsed.hostname;
+
+    const mergedParams = allUrls
+      .map((u) => normalizeKeys(extractParamsFromUrl(u)))
+      .reduce((acc, item) => mergeObjectsPreferringFirst(acc, item), {});
+
+    const networkCandidates = detectNetworkCandidates(allUrls);
+    const amazonRules = detectAmazonRules(allUrls, mergedParams);
+    const trafficSources = detectTrafficSources(mergedParams);
+
+    const classified = classifyUrl(
+      allUrls,
+      networkCandidates,
+      amazonRules,
+      trafficSources
+    );
+
+    const matchedLayers = dedupe([
+      ...(classified.classification?.matchedLayers || []),
+      ...networkCandidates.map((n) => n.name)
+    ]);
+
+    const commission_engine = buildCommissionEngine(
+      classified.classification,
+      matchedLayers,
+      trafficSources
+    );
+
+    const flow_nodes = buildFlowNodes(
+      classified.classification,
+      matchedLayers,
+      trafficSources,
+      hostname
+    );
+
+    json(res, 200, {
+      success: true,
+      input_url: normalizedInput,
+      final_url: finalUrl,
+      hostname,
+      params: mergedParams,
+      redirect_chain: redirectChain,
+      wrapped_destinations: wrappedDestinations,
+      network_candidates: networkCandidates,
+      matched_layers: matchedLayers,
+      amazon_rules: amazonRules,
+      traffic_sources: trafficSources,
+      classification: classified.classification,
+      commission_engine,
+      risks: classified.risks,
+      notes: classified.notes,
+      flow_nodes
+    });
   } catch (error) {
-    return res.status(500).json({
+    json(res, 500, {
       success: false,
-      error: "Internal server error"
+      error: error?.message || "Internal server error"
     });
   }
-});
-
-app.listen(PORT, () => {
-  console.log(`Attribution Intelligence API running on port ${PORT}`);
-});
+};
