@@ -1,299 +1,234 @@
-module.exports = async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+(function () {
+  const API_ENDPOINT = "/api/analyze";
 
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
+  const els = {
+    input: document.getElementById("bs-input-url"),
+    detectBtn: document.getElementById("bs-detect-btn"),
+    clearBtn: document.getElementById("bs-clear-btn"),
+    status: document.getElementById("bs-status"),
+    results: document.getElementById("bs-results"),
+    platform: document.getElementById("bs-platform"),
+    trafficType: document.getElementById("bs-traffic-type"),
+    primaryClaimer: document.getElementById("bs-primary-claimer"),
+    conflictLevel: document.getElementById("bs-conflict-level"),
+    overviewConfidence: document.getElementById("bs-overview-confidence"),
+    publisherName: document.getElementById("bs-publisher-name"),
+    publisherSubsite: document.getElementById("bs-publisher-subsite"),
+    publisherType: document.getElementById("bs-publisher-type"),
+    publisherConfidence: document.getElementById("bs-publisher-confidence"),
+    cePrimary: document.getElementById("bs-ce-primary"),
+    ceSecondary: document.getElementById("bs-ce-secondary"),
+    ceReason: document.getElementById("bs-ce-reason"),
+    ceConfidence: document.getElementById("bs-ce-confidence"),
+    trackingLayers: document.getElementById("bs-tracking-layers"),
+    decisionBasis: document.getElementById("bs-decision-basis"),
+    paramSignals: document.getElementById("bs-param-signals"),
+    summary: document.getElementById("bs-summary"),
+    rawJson: document.getElementById("bs-raw-json"),
+    candidates: document.getElementById("bs-candidates")
+  };
+
+  function setStatus(msg, show = true) {
+    els.status.textContent = msg || "";
+    els.status.classList.toggle("show", !!show);
   }
 
-  try {
-    if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
+  function clearResults() {
+    els.results.classList.remove("show");
+    els.platform.textContent = "-";
+    els.trafficType.textContent = "-";
+    els.primaryClaimer.textContent = "-";
+    els.conflictLevel.textContent = "-";
+    els.overviewConfidence.textContent = "Confidence: -";
+    els.publisherName.textContent = "-";
+    els.publisherSubsite.textContent = "-";
+    els.publisherType.textContent = "-";
+    els.publisherConfidence.textContent = "-";
+    els.cePrimary.textContent = "-";
+    els.ceSecondary.textContent = "-";
+    els.ceReason.textContent = "-";
+    els.ceConfidence.textContent = "-";
+    els.trackingLayers.innerHTML = "";
+    els.decisionBasis.innerHTML = "";
+    els.paramSignals.innerHTML = "";
+    els.summary.textContent = "-";
+    els.rawJson.textContent = "";
+    els.candidates.innerHTML = "";
+  }
+
+  function escapeHtml(str) {
+    return String(str ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function pill(text, variant = "accent") {
+    return `<span class="bs-pill pill-${variant}">${escapeHtml(text)}</span>`;
+  }
+
+  function renderTrackingLayers(layers) {
+    if (!Array.isArray(layers) || !layers.length) {
+      els.trackingLayers.innerHTML = '<div class="bs-note">No major tracking layers detected.</div>';
+      return;
     }
 
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const rawUrl = body?.url;
+    els.trackingLayers.innerHTML = layers.map(layer => {
+      let variant = "accent";
+      if (/affiliate|associates|creator|network|publisher/i.test(layer)) variant = "ok";
+      if (/ads|paid|criteo|triple whale|google|meta|tiktok|microsoft/i.test(layer)) variant = "warn";
+      if (/conflict/i.test(layer)) variant = "danger";
+      return pill(layer, variant);
+    }).join("");
+  }
 
-    if (!rawUrl) {
-      return res.status(400).json({ error: "Missing url" });
+  function renderDecisionBasis(items) {
+    if (!Array.isArray(items) || !items.length) {
+      els.decisionBasis.innerHTML = '<div class="bs-note">No decision notes available.</div>';
+      return;
     }
 
-    let parsed;
+    els.decisionBasis.innerHTML = items.map(item => `
+      <div class="bs-row">
+        <span class="label">Reason</span>
+        <span class="value">${escapeHtml(item)}</span>
+      </div>
+    `).join("");
+  }
+
+  function renderParamSignals(signals) {
+    if (!signals || typeof signals !== "object" || !Object.keys(signals).length) {
+      els.paramSignals.innerHTML = '<div class="bs-note">No special parameters detected.</div>';
+      return;
+    }
+
+    const html = Object.entries(signals).map(([k, v]) => `
+      <div class="bs-row">
+        <span class="label">${escapeHtml(k)}</span>
+        <span class="value">${escapeHtml(typeof v === "object" ? JSON.stringify(v) : v)}</span>
+      </div>
+    `).join("");
+
+    els.paramSignals.innerHTML = `<div class="bs-list">${html}</div>`;
+  }
+
+  function renderCandidates(candidates) {
+    if (!Array.isArray(candidates) || !candidates.length) {
+      els.candidates.innerHTML = '<div class="bs-note">No candidate platforms detected.</div>';
+      return;
+    }
+
+    els.candidates.innerHTML = candidates.map(item => `
+      <div class="bs-row">
+        <span class="label">${escapeHtml(item.name)} (${escapeHtml(item.confidence || "-")})</span>
+        <span class="value">Score ${escapeHtml(item.score)} | ${escapeHtml((item.signals || []).join(", "))}</span>
+      </div>
+    `).join("");
+  }
+
+  function renderResult(data) {
+    els.results.classList.add("show");
+
+    els.platform.textContent = data.primary_platform?.name || "-";
+    els.trafficType.textContent = data.traffic_type || "-";
+    els.primaryClaimer.textContent = data.commission_engine?.primary_claimer || "-";
+    els.conflictLevel.textContent = data.commission_engine?.conflict_level || "-";
+    els.overviewConfidence.textContent = "Confidence: " + (data.confidence || "-");
+
+    els.publisherName.textContent = data.publisher?.publisher || "-";
+    els.publisherSubsite.textContent = data.publisher?.sub_site || "-";
+    els.publisherType.textContent = data.publisher?.type || "-";
+    els.publisherConfidence.textContent = data.publisher?.confidence || "-";
+
+    els.cePrimary.textContent = data.commission_engine?.primary_claimer || "-";
+    els.ceSecondary.textContent = Array.isArray(data.commission_engine?.secondary_claimers)
+      ? data.commission_engine.secondary_claimers.join(", ")
+      : "-";
+    els.ceReason.textContent = data.commission_engine?.reason || "-";
+    els.ceConfidence.textContent = data.commission_engine?.confidence || "-";
+
+    renderTrackingLayers(data.tracking_layers || []);
+    renderDecisionBasis(data.commission_engine?.decision_basis || []);
+    renderParamSignals(data.parameter_signals || {});
+    renderCandidates(data.platform_candidates || []);
+
+    els.summary.textContent = data.summary || "-";
+    els.rawJson.textContent = JSON.stringify(data, null, 2);
+  }
+
+  async function detect() {
+    const url = els.input.value.trim();
+
+    if (!url) {
+      setStatus("Please paste a URL first.");
+      return;
+    }
+
+    clearResults();
+    setStatus("Analyzing weighted signals, platform candidates, and commission ownership...");
+
     try {
-      parsed = new URL(rawUrl);
-    } catch (e) {
-      return res.status(400).json({ error: "Invalid URL" });
-    }
+      const res = await fetch(API_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url })
+      });
 
-    const host = parsed.hostname.toLowerCase();
-    const params = parsed.searchParams;
+      const text = await res.text();
+      let data = null;
 
-    const trackingLayers = [];
-    const decisionBasis = [];
-    const parameterSignals = {};
-    const platformCandidates = [];
-
-    let platform = "-";
-    let trafficType = "unknown";
-    let confidence = "low";
-
-    let publisher = "-";
-    let subSite = "-";
-    let publisherType = "-";
-    let publisherConfidence = "low";
-
-    let primaryClaimer = "-";
-    let secondaryClaimers = [];
-    let conflictLevel = "low";
-    let reason = "No strong attribution signal detected.";
-    let commissionConfidence = "low";
-    let summary = "No strong attribution signal detected.";
-
-    function addParamSignal(key) {
-      if (params.has(key)) {
-        parameterSignals[key] = params.get(key);
-        return true;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        data = null;
       }
-      return false;
-    }
 
-    if (host.includes("amazon.com")) {
-      platformCandidates.push({
-        name: "Amazon",
-        confidence: "medium",
-        score: 50,
-        signals: ["amazon domain"]
-      });
-      decisionBasis.push("Amazon domain detected.");
-      trackingLayers.push("amazon");
-    }
-
-    if (addParamSignal("tag")) {
-      platform = "Amazon Associates";
-      trafficType = "affiliate";
-      confidence = "high";
-
-      trackingLayers.push("affiliate");
-      trackingLayers.push("amazon associates");
-
-      platformCandidates.push({
-        name: "Amazon Associates",
-        confidence: "high",
-        score: 95,
-        signals: ["tag"]
-      });
-
-      const tagValue = params.get("tag") || "";
-      primaryClaimer = "Publisher";
-      secondaryClaimers = ["Amazon"];
-      reason = "Amazon Associates tag parameter detected.";
-      commissionConfidence = "high";
-      summary = "Amazon affiliate link detected via tag parameter.";
-      decisionBasis.push("Amazon Associates tag parameter found in URL.");
-
-      conflictLevel = "low";
-
-      if (/tomsguide/i.test(tagValue)) {
-        publisher = "Tom's Guide";
-        subSite = "Tom's Guide";
-        publisherType = "publisher";
-        publisherConfidence = "high";
-        decisionBasis.push("Tag value suggests Tom's Guide publisher mapping.");
-      } else if (/wirecutter/i.test(tagValue)) {
-        publisher = "Wirecutter";
-        subSite = "Wirecutter";
-        publisherType = "publisher";
-        publisherConfidence = "high";
-        decisionBasis.push("Tag value suggests Wirecutter publisher mapping.");
-      } else if (/forbes/i.test(tagValue)) {
-        publisher = "Forbes";
-        subSite = "Forbes";
-        publisherType = "publisher";
-        publisherConfidence = "medium";
-        decisionBasis.push("Tag value suggests Forbes publisher mapping.");
-      } else {
-        publisher = tagValue || "Unknown Publisher";
-        subSite = "-";
-        publisherType = "publisher";
-        publisherConfidence = "medium";
-        decisionBasis.push("Publisher inferred from Amazon tag value.");
+      if (!res.ok) {
+        throw new Error(
+          (data && (data.detail || data.message || data.error)) ||
+          ("Request failed with status " + res.status)
+        );
       }
+
+      setStatus("Detection complete.");
+      renderResult(data);
+    } catch (err) {
+      console.error("Detect failed:", err);
+      setStatus("Error: " + (err.message || "Unknown error"));
     }
-
-    if (addParamSignal("maas") || addParamSignal("aa_campaignid") || addParamSignal("aa_adgroupid")) {
-      platform = "Amazon Attribution";
-      trafficType = "paid media";
-      confidence = "high";
-
-      trackingLayers.push("amazon attribution");
-      trackingLayers.push("ads");
-
-      platformCandidates.push({
-        name: "Amazon Attribution",
-        confidence: "high",
-        score: 96,
-        signals: ["maas", "aa_campaignid", "aa_adgroupid"]
-      });
-
-      primaryClaimer = "Brand / Advertiser";
-      secondaryClaimers = ["Amazon"];
-      conflictLevel = params.has("tag") ? "medium" : "low";
-      reason = "Amazon Attribution parameters detected.";
-      commissionConfidence = "high";
-      summary = "Amazon Attribution link detected via campaign parameters.";
-      decisionBasis.push("Amazon Attribution campaign parameters found in URL.");
-
-      if (params.has("tag")) {
-        decisionBasis.push("Affiliate tag and Amazon Attribution parameters coexist.");
-        trackingLayers.push("conflict");
-      }
-    }
-
-    if (addParamSignal("cjevent")) {
-      platform = "CJ Affiliate";
-      trafficType = "affiliate";
-      confidence = "high";
-
-      trackingLayers.push("affiliate");
-      trackingLayers.push("cj");
-
-      platformCandidates.push({
-        name: "CJ Affiliate",
-        confidence: "high",
-        score: 92,
-        signals: ["cjevent"]
-      });
-
-      primaryClaimer = "Publisher";
-      secondaryClaimers = [];
-      conflictLevel = "low";
-      reason = "CJ click tracking parameter detected.";
-      commissionConfidence = "high";
-      summary = "CJ affiliate tracking detected.";
-      decisionBasis.push("cjevent parameter found in URL.");
-    }
-
-    if (addParamSignal("irclickid")) {
-      platform = "Impact";
-      trafficType = "affiliate";
-      confidence = "high";
-
-      trackingLayers.push("affiliate");
-      trackingLayers.push("impact");
-
-      platformCandidates.push({
-        name: "Impact",
-        confidence: "high",
-        score: 92,
-        signals: ["irclickid"]
-      });
-
-      primaryClaimer = "Publisher";
-      secondaryClaimers = [];
-      conflictLevel = "low";
-      reason = "Impact click tracking parameter detected.";
-      commissionConfidence = "high";
-      summary = "Impact affiliate tracking detected.";
-      decisionBasis.push("irclickid parameter found in URL.");
-    }
-
-    if (addParamSignal("ranMID") || addParamSignal("ranEAID") || addParamSignal("ranSiteID")) {
-      platform = "Rakuten";
-      trafficType = "affiliate";
-      confidence = "high";
-
-      trackingLayers.push("affiliate");
-      trackingLayers.push("rakuten");
-
-      platformCandidates.push({
-        name: "Rakuten",
-        confidence: "high",
-        score: 92,
-        signals: ["ranMID", "ranEAID", "ranSiteID"]
-      });
-
-      primaryClaimer = "Publisher";
-      secondaryClaimers = [];
-      conflictLevel = "low";
-      reason = "Rakuten tracking parameters detected.";
-      commissionConfidence = "high";
-      summary = "Rakuten affiliate tracking detected.";
-      decisionBasis.push("Rakuten tracking parameters found in URL.");
-    }
-
-    if (addParamSignal("click_id")) {
-      platformCandidates.push({
-        name: "Awin",
-        confidence: "medium",
-        score: 75,
-        signals: ["click_id"]
-      });
-      trackingLayers.push("affiliate");
-      trackingLayers.push("awin");
-      decisionBasis.push("click_id detected; may indicate Awin or another affiliate network.");
-      if (platform === "-") {
-        platform = "Awin";
-        trafficType = "affiliate";
-        confidence = "medium";
-        primaryClaimer = "Publisher";
-        reason = "click_id tracking parameter detected.";
-        commissionConfidence = "medium";
-        summary = "Likely affiliate tracking detected via click_id.";
-      }
-    }
-
-    if (addParamSignal("pb_id") || addParamSignal("pb_clickid") || addParamSignal("pb_source")) {
-      platform = "PartnerBoost";
-      trafficType = "affiliate";
-      confidence = "high";
-
-      trackingLayers.push("affiliate");
-      trackingLayers.push("partnerboost");
-
-      platformCandidates.push({
-        name: "PartnerBoost",
-        confidence: "high",
-        score: 92,
-        signals: ["pb_id", "pb_clickid", "pb_source"]
-      });
-
-      primaryClaimer = "Publisher / Creator";
-      secondaryClaimers = [];
-      conflictLevel = "low";
-      reason = "PartnerBoost parameters detected.";
-      commissionConfidence = "high";
-      summary = "PartnerBoost affiliate tracking detected.";
-      decisionBasis.push("PartnerBoost parameters found in URL.");
-    }
-
-    return res.status(200).json({
-      primary_platform: { name: platform },
-      traffic_type: trafficType,
-      confidence,
-      publisher: {
-        publisher,
-        sub_site: subSite,
-        type: publisherType,
-        confidence: publisherConfidence
-      },
-      commission_engine: {
-        primary_claimer: primaryClaimer,
-        secondary_claimers: secondaryClaimers,
-        conflict_level: conflictLevel,
-        reason,
-        confidence: commissionConfidence,
-        decision_basis: decisionBasis
-      },
-      tracking_layers: trackingLayers,
-      parameter_signals: parameterSignals,
-      platform_candidates: platformCandidates,
-      summary
-    });
-  } catch (error) {
-    console.error("analyze error:", error);
-    return res.status(500).json({
-      error: error.message || "Internal server error"
-    });
   }
-};
+
+  els.detectBtn.addEventListener("click", detect);
+
+  els.clearBtn.addEventListener("click", function () {
+    els.input.value = "";
+    setStatus("", false);
+    clearResults();
+  });
+
+  els.input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") detect();
+  });
+
+  const examples = {
+    "amazon-attribution": "https://www.amazon.com/dp/B0XXXXX?maas=maas_adg_api_123&ref_=aa_maas&aa_campaignid=123&aa_adgroupid=456",
+    "amazon-associates": "https://www.amazon.com/dp/B0XXXXX?tag=example-20",
+    "amazon-creator": "https://www.amazon.com/gp/product/B0XXXXX?creative=9325&camp=1789&linkCode=ur2&tag=slickdeals09-20&ascsubtag=abcINT",
+    "awin": "https://www.example.com/?click_id=1011lCm2LnUQ&utm_medium=affiliate&utm_source=futurepublishing",
+    "impact": "https://www.example.com/?irclickid=abc123&utm_medium=affiliate",
+    "cj": "https://www.example.com/?cjevent=abc123",
+    "rakuten": "https://www.example.com/?ranMID=12345&ranEAID=abc&ranSiteID=xyz",
+    "partnerboost": "https://www.example.com/?pb_id=123&pb_clickid=abc&pb_source=tiktok"
+  };
+
+  document.querySelectorAll("#bs-aff-tool .bs-hint").forEach(tag => {
+    tag.addEventListener("click", function () {
+      const key = this.getAttribute("data-example");
+      if (examples[key]) {
+        els.input.value = examples[key];
+      }
+    });
+  });
+})();
