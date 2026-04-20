@@ -1,105 +1,60 @@
-(function () {
-  const API_ENDPOINT = "https://tools.brandshuo.com/api/analyze";
+module.exports = async (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  const input = document.getElementById("bs-input-url");
-  const detectBtn = document.getElementById("bs-detect-btn");
-  const clearBtn = document.getElementById("bs-clear-btn");
-  const status = document.getElementById("bs-status");
-  const results = document.getElementById("bs-results");
-  const rawJson = document.getElementById("bs-raw-json");
-
-  function setStatus(msg, show = true) {
-    if (!status) {
-      alert("没找到 #bs-status");
-      return;
-    }
-    status.textContent = msg || "";
-    status.classList.toggle("show", !!show);
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
   }
 
-  async function detect() {
-    alert("Detect 按钮已点击");
-
-    if (!input) {
-      alert("没找到输入框 #bs-input-url");
-      return;
+  try {
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
     }
 
-    const url = input.value.trim();
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const url = body?.url;
 
     if (!url) {
-      alert("请输入 URL");
-      setStatus("Please paste a URL first.");
-      return;
+      return res.status(400).json({ error: "Missing url" });
     }
 
-    setStatus("正在请求接口...");
-    console.log("request url =", API_ENDPOINT);
-    console.log("input url =", url);
-
-    try {
-      const res = await fetch(API_ENDPOINT, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ url })
-      });
-
-      alert("接口已返回，HTTP 状态: " + res.status);
-
-      const text = await res.text();
-      console.log("response text =", text);
-
-      if (rawJson) {
-        rawJson.textContent = text;
-      }
-
-      if (results) {
-        results.classList.add("show");
-      }
-
-      if (!res.ok) {
-        setStatus("接口报错: " + res.status);
-        alert("接口报错:\n" + text);
-        return;
-      }
-
-      setStatus("请求成功");
-      alert("请求成功，已收到返回数据");
-    } catch (err) {
-      console.error(err);
-      setStatus("请求失败: " + (err.message || "unknown error"));
-      alert("fetch 失败:\n" + (err.message || "unknown error"));
-    }
+    return res.status(200).json({
+      primary_platform: { name: "Amazon Associates" },
+      traffic_type: "affiliate",
+      confidence: "high",
+      publisher: {
+        publisher: "Tom's Guide",
+        sub_site: "Deals",
+        type: "publisher",
+        confidence: "medium"
+      },
+      commission_engine: {
+        primary_claimer: "Publisher",
+        secondary_claimers: ["Amazon"],
+        conflict_level: "low",
+        reason: "tag parameter detected",
+        confidence: "high",
+        decision_basis: ["Amazon tag parameter found in URL"]
+      },
+      tracking_layers: ["affiliate", "amazon associates"],
+      parameter_signals: {
+        tag: "ftr-tomsguide-us-20"
+      },
+      platform_candidates: [
+        {
+          name: "Amazon Associates",
+          confidence: "high",
+          score: 95,
+          signals: ["tag"]
+        }
+      ],
+      summary: "Amazon affiliate link detected via tag parameter."
+    });
+  } catch (error) {
+    console.error("analyze error:", error);
+    return res.status(500).json({
+      error: error.message || "Internal server error"
+    });
   }
-
-  function init() {
-    alert("analyze.js 已加载");
-
-    if (!detectBtn) {
-      alert("没找到按钮 #bs-detect-btn");
-      return;
-    }
-
-    detectBtn.addEventListener("click", detect);
-
-    if (clearBtn) {
-      clearBtn.addEventListener("click", function () {
-        if (input) input.value = "";
-        if (rawJson) rawJson.textContent = "";
-        if (results) results.classList.remove("show");
-        setStatus("", false);
-      });
-    }
-
-    setStatus("页面已加载", false);
-    console.log("bind success");
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
-})();
+};
