@@ -17,22 +17,26 @@ export default async function handler(req, res) {
     const queryEntries = [...parsed.searchParams.entries()];
     const queryMap = buildQueryMap(queryEntries);
 
-    // 1) detect layers
+    // 1) Redirect / destination / router analysis
+    const redirectChain = analyzeRedirectChain(parsed, queryMap, lowerUrl);
+
+    // 2) Detect layers from the entry URL
     const adsLayer = detectAdsLayer(queryMap);
-    const affiliateLayer = detectAffiliateLayer(queryMap, lowerUrl);
-    const amazonLayer = detectAmazonLayer(queryMap, lowerUrl, hostname);
+    const affiliateLayer = detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain);
+    const amazonLayer = detectAmazonLayer(queryMap, lowerUrl, hostname, redirectChain);
 
-    // 2) publisher
-    const publisher = detectPublisher(hostname, queryMap, lowerUrl);
+    // 3) Publisher
+    const publisher = detectPublisher(hostname, queryMap, lowerUrl, redirectChain);
 
-    // 3) platform candidates
+    // 4) Platform candidates
     const platformCandidates = scorePlatforms({
       adsLayer,
       affiliateLayer,
       amazonLayer,
       hostname,
       lowerUrl,
-      queryMap
+      queryMap,
+      redirectChain
     });
 
     const primaryPlatform = platformCandidates.length
@@ -44,54 +48,59 @@ export default async function handler(req, res) {
           signals: []
         };
 
-    // 4) traffic type
+    // 5) Traffic type
     const trafficType = inferTrafficType({
       adsLayer,
       affiliateLayer,
       amazonLayer
     });
 
-    // 5) commission engine
+    // 6) Commission engine
     const commissionEngine = inferCommissionEngine({
       adsLayer,
       affiliateLayer,
       amazonLayer,
-      primaryPlatform
+      primaryPlatform,
+      redirectChain
     });
 
-    // 6) tracking layers
+    // 7) Tracking layers
     const trackingLayers = [];
     if (adsLayer.detected) trackingLayers.push("Paid Media");
     if (affiliateLayer.detected) trackingLayers.push("Affiliate Network");
     if (amazonLayer.detected) trackingLayers.push("Amazon Tracking Layer");
+    if (redirectChain.router_layer.detected) trackingLayers.push("Router Layer");
 
-    // 7) parameter signals
+    // 8) Parameter signals
     const parameterSignals = {
       ...adsLayer.params,
       ...affiliateLayer.params,
       ...amazonLayer.params
     };
 
-    // 8) participant stack
+    // 9) Participant stack
     const participantStack = {
       paid_media: adsLayer.detected ? adsLayer.items.join(", ") : "No paid media click IDs detected",
       affiliate_network: affiliateLayer.detected ? affiliateLayer.items.join(", ") : "No affiliate network signals detected",
       amazon_layer: amazonLayer.detected ? amazonLayer.items.join(", ") : "No Amazon-specific layer detected",
+      router_layer: redirectChain.router_layer.detected ? redirectChain.router_layer.items.join(", ") : "No router layer detected",
       publisher: publisher.publisher !== "Unknown"
         ? `${publisher.publisher}${publisher.sub_site && publisher.sub_site !== "-" ? " / " + publisher.sub_site : ""}`
         : "Not clearly identified",
+      final_destination: redirectChain.final_destination.domain || "Unknown",
       likely_claimer: commissionEngine.primary_claimer
     };
 
-    // 9) conflict insight
+    // 10) Conflict insight
     const conflictInsight = buildConflictInsight({
       adsLayer,
       affiliateLayer,
       amazonLayer,
-      commissionEngine
+      commissionEngine,
+      redirectChain
     });
 
-    // 10) summary
+    // 11) Summary
     const summary = buildSummary({
       primaryPlatform,
       trafficType,
@@ -99,7 +108,8 @@ export default async function handler(req, res) {
       affiliateLayer,
       amazonLayer,
       publisher,
-      commissionEngine
+      commissionEngine,
+      redirectChain
     });
 
     const response = {
@@ -124,7 +134,8 @@ export default async function handler(req, res) {
       publisher,
       commission_engine: commissionEngine,
       participant_stack: participantStack,
-      conflict_insight: conflictInsight
+      conflict_insight: conflictInsight,
+      redirect_chain: redirectChain
     };
 
     return res.status(200).json(response);
@@ -176,6 +187,162 @@ function confidenceFromScore(score) {
   return "Low";
 }
 
+function getDomain(urlString) {
+  try {
+    return new URL(urlString).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function safeDecode(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function looksLikeUrl(value) {
+  if (!value || typeof value !== "string") return false;
+  const v = safeDecode(value).trim();
+  return /^https?:\/\//i.test(v);
+}
+
+function pickNestedDestination(queryMap) {
+  const nestedKeys = [
+    "url",
+    "u",
+    "redirect",
+    "redirect_url",
+    "redirecturl",
+    "destination",
+    "dest",
+    "to",
+    "target",
+    "target_url",
+    "out",
+    "murl",
+    "dl",
+    "deal",
+    "rd",
+    "r",
+    "p"
+  ];
+
+  for (const key of nestedKeys) {
+    if (hasParam(queryMap, key) && looksLikeUrl(queryMap[key])) {
+      return safeDecode(queryMap[key]);
+    }
+  }
+
+  return "";
+}
+
+// --------------------
+// Redirect / destination / router analysis
+// --------------------
+function analyzeRedirectChain(parsedUrl, queryMap, lowerUrl) {
+  const entryUrl = parsedUrl.toString();
+  const entryDomain = parsedUrl.hostname.toLowerCase();
+
+  const routerMatches = detectRouterLayer(entryDomain, lowerUrl, queryMap);
+  const nestedDestination = pickNestedDestination(queryMap);
+
+  let finalUrl = nestedDestination || entryUrl;
+  let finalDomain = getDomain(finalUrl) || entryDomain;
+  let finalPath = "";
+
+  try {
+    finalPath = new URL(finalUrl).pathname || "/";
+  } catch {
+    finalPath = parsedUrl.pathname || "/";
+  }
+
+  const steps = [];
+  steps.push({
+    type: "entry",
+    label: "Original URL",
+    domain: entryDomain,
+    url: entryUrl
+  });
+
+  if (routerMatches.detected) {
+    steps.push({
+      type: "router",
+      label: "Router Layer",
+      domain: entryDomain,
+      url: entryUrl
+    });
+  }
+
+  if (nestedDestination) {
+    steps.push({
+      type: "destination",
+      label: "Final Destination",
+      domain: finalDomain,
+      url: finalUrl
+    });
+  } else {
+    steps.push({
+      type: "destination",
+      label: "Final Destination",
+      domain: finalDomain,
+      url: finalUrl
+    });
+  }
+
+  return {
+    entry_url: entryUrl,
+    final_url: finalUrl,
+    final_destination: {
+      domain: finalDomain,
+      path: finalPath,
+      is_amazon: finalDomain.includes("amazon.")
+    },
+    router_layer: routerMatches,
+    steps
+  };
+}
+
+function detectRouterLayer(hostname, lowerUrl, queryMap) {
+  const items = [];
+  const reasons = [];
+
+  const routerDomains = [
+    { name: "Skimlinks", match: ["go.skimresources.com", "skimresources.com", "skimlinks.com"] },
+    { name: "Sovrn / VigLink", match: ["redirect.viglink.com", "viglink.com", "sovrn.com"] },
+    { name: "Link Router", match: ["linksynergy.com"] },
+    { name: "Impact Tracking Redirect", match: ["impact.com", "impactradius.com"] },
+    { name: "CJ Redirect", match: ["jdoqocy.com", "tkqlhce.com", "dpbolvw.net", "anrdoezrs.net"] },
+    { name: "Awin Redirect", match: ["awin1.com"] },
+    { name: "Rakuten Redirect", match: ["click.linksynergy.com"] },
+    { name: "Partnerize Redirect", match: ["prf.hn"] },
+    { name: "TradeDoubler Redirect", match: ["clk.tradedoubler.com"] },
+    { name: "Webgains Redirect", match: ["track.webgains.com"] },
+    { name: "FlexOffers Redirect", match: ["track.flexlinkspro.com"] }
+  ];
+
+  routerDomains.forEach((rule) => {
+    if (rule.match.some((m) => hostname.includes(m) || lowerUrl.includes(m))) {
+      items.push(rule.name);
+      reasons.push(`Matched router domain pattern: ${rule.match[0]}`);
+    }
+  });
+
+  const nestedDest = pickNestedDestination(queryMap);
+  if (nestedDest) {
+    items.push("Nested Destination Redirect");
+    reasons.push("URL contains a nested destination parameter.");
+  }
+
+  return {
+    detected: items.length > 0,
+    items: unique(items),
+    reason: reasons.length ? reasons.join(" ") : "No router layer detected."
+  };
+}
+
 // --------------------
 // Ads layer
 // --------------------
@@ -209,7 +376,7 @@ function detectAdsLayer(queryMap) {
 // --------------------
 // Affiliate layer
 // --------------------
-function detectAffiliateLayer(queryMap, lowerUrl) {
+function detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain) {
   const items = [];
   const params = {};
 
@@ -250,6 +417,20 @@ function detectAffiliateLayer(queryMap, lowerUrl) {
   if (lowerUrl.includes("skimlinks")) items.push("Skimlinks");
   if (lowerUrl.includes("viglink") || lowerUrl.includes("sovrn")) items.push("Sovrn / VigLink");
 
+  if (hostname.includes("awin1.com")) items.push("Awin");
+  if (hostname.includes("prf.hn")) items.push("Partnerize");
+  if (hostname.includes("click.linksynergy.com")) items.push("Rakuten");
+  if (hostname.includes("track.webgains.com")) items.push("Webgains");
+  if (hostname.includes("clk.tradedoubler.com")) items.push("TradeDoubler");
+
+  if (redirectChain.router_layer.detected) {
+    redirectChain.router_layer.items.forEach((item) => {
+      if (/Skimlinks|Sovrn|Impact|CJ|Awin|Rakuten|Partnerize|TradeDoubler|Webgains|FlexOffers/i.test(item)) {
+        items.push(item.replace(" Redirect", "").replace(" Tracking Redirect", ""));
+      }
+    });
+  }
+
   return {
     detected: items.length > 0,
     items: unique(items),
@@ -260,7 +441,7 @@ function detectAffiliateLayer(queryMap, lowerUrl) {
 // --------------------
 // Amazon layer
 // --------------------
-function detectAmazonLayer(queryMap, lowerUrl, hostname) {
+function detectAmazonLayer(queryMap, lowerUrl, hostname, redirectChain) {
   const items = [];
   const params = {};
 
@@ -291,8 +472,12 @@ function detectAmazonLayer(queryMap, lowerUrl, hostname) {
     params.amazon_domain = hostname;
   }
 
+  if (redirectChain.final_destination.is_amazon) {
+    params.final_destination_amazon = redirectChain.final_destination.domain;
+  }
+
   return {
-    detected: items.length > 0,
+    detected: items.length > 0 || redirectChain.final_destination.is_amazon,
     items: unique(items),
     params
   };
@@ -301,7 +486,7 @@ function detectAmazonLayer(queryMap, lowerUrl, hostname) {
 // --------------------
 // Publisher
 // --------------------
-function detectPublisher(hostname, queryMap, lowerUrl) {
+function detectPublisher(hostname, queryMap, lowerUrl, redirectChain) {
   let publisher = "Unknown";
   let subSite = "-";
   let type = "Unknown";
@@ -341,7 +526,7 @@ function detectPublisher(hostname, queryMap, lowerUrl) {
     }
   }
 
-  if (lowerUrl.includes("skimlinks")) {
+  if (redirectChain.router_layer.items.includes("Skimlinks")) {
     if (publisher === "Unknown") publisher = "Skimlinks";
     type = "Sub-affiliate / Link Router";
     confidence = "Medium";
@@ -358,7 +543,7 @@ function detectPublisher(hostname, queryMap, lowerUrl) {
 // --------------------
 // Scoring
 // --------------------
-function scorePlatforms({ adsLayer, affiliateLayer, amazonLayer, hostname }) {
+function scorePlatforms({ adsLayer, affiliateLayer, amazonLayer, hostname, redirectChain }) {
   const candidates = [];
 
   function addCandidate(name, score, signals) {
@@ -389,6 +574,8 @@ function scorePlatforms({ adsLayer, affiliateLayer, amazonLayer, hostname }) {
     if (name === "Awin") score = 84;
     if (name === "Rakuten") score = 84;
     if (name === "Wayward") score = 80;
+    if (name === "Skimlinks") score = 82;
+    if (name === "Sovrn / VigLink") score = 82;
     addCandidate(name, score, [name, "affiliate network signal"]);
   });
 
@@ -401,11 +588,19 @@ function scorePlatforms({ adsLayer, affiliateLayer, amazonLayer, hostname }) {
     addCandidate(name, score, [name, "paid media click id"]);
   });
 
-  if (hostname.includes("amazon.")) {
-    addCandidate("Amazon Domain", 50, ["amazon domain"]);
+  if (redirectChain.router_layer.detected) {
+    redirectChain.router_layer.items.forEach((name) => {
+      addCandidate(name, 70, [name, "router layer"]);
+    });
   }
 
-  return candidates.sort((a, b) => b.score - a.score);
+  if (hostname.includes("amazon.") || redirectChain.final_destination.is_amazon) {
+    addCandidate("Amazon Destination", 50, ["amazon destination"]);
+  }
+
+  return candidates
+    .sort((a, b) => b.score - a.score)
+    .filter((item, idx, arr) => arr.findIndex((x) => x.name === item.name) === idx);
 }
 
 // --------------------
@@ -429,12 +624,13 @@ function inferTrafficType({ adsLayer, affiliateLayer, amazonLayer }) {
 // --------------------
 // Commission engine
 // --------------------
-function inferCommissionEngine({ adsLayer, affiliateLayer, amazonLayer, primaryPlatform }) {
+function inferCommissionEngine({ adsLayer, affiliateLayer, amazonLayer, primaryPlatform, redirectChain }) {
   const hasAds = adsLayer.detected;
   const hasAffiliate = affiliateLayer.detected;
   const hasAmazonAttribution = amazonLayer.items.includes("Amazon Attribution");
   const hasAmazonAssociates = amazonLayer.items.includes("Amazon Associates");
   const hasAmazonACC = amazonLayer.items.includes("Amazon Creator Connections");
+  const hasRouter = redirectChain.router_layer.detected;
 
   let primaryClaimer = primaryPlatform.name || "Unknown";
   let secondaryClaimers = [];
@@ -464,12 +660,16 @@ function inferCommissionEngine({ adsLayer, affiliateLayer, amazonLayer, primaryP
   if (hasAmazonAttribution) secondaryClaimers.push("Amazon Attribution");
   if (hasAmazonAssociates) secondaryClaimers.push("Amazon Associates");
   if (hasAmazonACC) secondaryClaimers.push("Amazon Creator Connections");
+  if (hasRouter) secondaryClaimers.push(...redirectChain.router_layer.items);
 
   secondaryClaimers = unique(secondaryClaimers).filter((v) => v !== primaryClaimer);
 
-  const activeLayerCount = [hasAds, hasAffiliate, amazonLayer.detected].filter(Boolean).length;
+  const activeLayerCount = [hasAds, hasAffiliate, amazonLayer.detected, hasRouter].filter(Boolean).length;
 
-  if (activeLayerCount >= 3) {
+  if (activeLayerCount >= 4) {
+    conflictLevel = "High";
+    reason += " Paid media, affiliate, router, and Amazon-related signals coexist in the same path, so several systems may try to claim influence.";
+  } else if (activeLayerCount >= 3) {
     conflictLevel = "High";
     reason += " Multiple attribution layers are present in the same link, so several systems may all record influence.";
   } else if (activeLayerCount === 2) {
@@ -486,6 +686,7 @@ function inferCommissionEngine({ adsLayer, affiliateLayer, amazonLayer, primaryP
     decision_basis: [
       `Top scored platform: ${primaryPlatform.name || "Unknown"}`,
       `Conflict level: ${conflictLevel}`,
+      `Final destination: ${redirectChain.final_destination.domain || "Unknown"}`,
       reason
     ]
   };
@@ -494,20 +695,25 @@ function inferCommissionEngine({ adsLayer, affiliateLayer, amazonLayer, primaryP
 // --------------------
 // Conflict insight
 // --------------------
-function buildConflictInsight({ adsLayer, affiliateLayer, amazonLayer, commissionEngine }) {
-  const activeLayerCount = [adsLayer.detected, affiliateLayer.detected, amazonLayer.detected].filter(Boolean).length;
+function buildConflictInsight({ adsLayer, affiliateLayer, amazonLayer, commissionEngine, redirectChain }) {
+  const activeLayerCount = [
+    adsLayer.detected,
+    affiliateLayer.detected,
+    amazonLayer.detected,
+    redirectChain.router_layer.detected
+  ].filter(Boolean).length;
 
   let title = "Low overlap";
   let message = "This link does not show strong evidence of multi-layer attribution conflict.";
 
   if (activeLayerCount >= 2 || commissionEngine.conflict_level === "Medium") {
     title = "Attribution overlap detected";
-    message = "More than one tracking layer is present. Paid media, affiliate platforms, or Amazon systems may each register influence using their own attribution logic.";
+    message = "More than one tracking layer is present. Paid media, affiliate platforms, routers, or Amazon systems may each register influence using their own attribution logic.";
   }
 
   if (activeLayerCount >= 3 || commissionEngine.conflict_level === "High") {
     title = "High duplicate attribution risk";
-    message = "This link contains multiple active tracking layers across paid media, affiliate routing, and Amazon-related signals. In practice, several systems may all attempt to claim the same conversion.";
+    message = "This link contains multiple active layers across paid media, affiliate routing, router redirects, and Amazon-related signals. In practice, several systems may all attempt to claim the same conversion.";
   }
 
   return { title, message };
@@ -523,7 +729,8 @@ function buildSummary({
   affiliateLayer,
   amazonLayer,
   publisher,
-  commissionEngine
+  commissionEngine,
+  redirectChain
 }) {
   const parts = [];
 
@@ -538,12 +745,20 @@ function buildSummary({
     parts.push(`Affiliate network signals found: ${affiliateLayer.items.join(", ")}.`);
   }
 
+  if (redirectChain.router_layer.detected) {
+    parts.push(`Router layer detected: ${redirectChain.router_layer.items.join(", ")}.`);
+  }
+
   if (amazonLayer.detected) {
     parts.push(`Amazon-related layers found: ${amazonLayer.items.join(", ")}.`);
   }
 
   if (publisher.publisher !== "Unknown") {
     parts.push(`Publisher context suggests ${publisher.publisher}.`);
+  }
+
+  if (redirectChain.final_destination.domain) {
+    parts.push(`Final destination resolves to ${redirectChain.final_destination.domain}.`);
   }
 
   parts.push(`Most likely primary claimer: ${commissionEngine.primary_claimer}.`);
