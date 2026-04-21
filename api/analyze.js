@@ -442,7 +442,13 @@ function detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain) {
     { name: "UpPromote", keys: ["up_promote", "sref"] },
     { name: "ClickBank", keys: ["cbitems", "cbfid"] },
     { name: "JVZoo", keys: ["jv", "affiliate"] },
-    { name: "Digistore24", keys: ["ds24"] }
+    { name: "Digistore24", keys: ["ds24"] },
+
+    // eBay Partner Network
+    {
+      name: "eBay Partner Network",
+      keys: ["mkevt", "toolid", "campid", "siteid", "mkrid", "mkcid", "customid"]
+    }
   ];
 
   rules.forEach((rule) => {
@@ -460,6 +466,11 @@ function detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain) {
   if (String(queryMap.utm_source || "").toLowerCase() === "impact") {
     items.push("Impact");
     params.utm_source = queryMap.utm_source;
+  }
+
+  // eBay helper signals
+  if (hostname.includes("ebay.com") && (hasParam(queryMap, "mkrid") || hasParam(queryMap, "campid"))) {
+    items.push("eBay Partner Network");
   }
 
   // URL/domain-based helpers
@@ -627,6 +638,7 @@ function scorePlatforms({ adsLayer, affiliateLayer, amazonLayer, hostname, redir
     if (name === "CJ Affiliate") score = 84;
     if (name === "Awin") score = 84;
     if (name === "Rakuten") score = 84;
+    if (name === "eBay Partner Network") score = 84;
     if (name === "Wayward") score = 80;
     if (name === "Skimlinks") score = 82;
     if (name === "Sovrn / VigLink") score = 82;
