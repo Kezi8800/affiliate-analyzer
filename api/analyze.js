@@ -214,11 +214,13 @@ module.exports = async (req, res) => {
     function isAwinStyleClickId(value) {
       const v = String(value || "").trim();
       if (!v) return false;
+      return /^\d{3,}l[A-Za-z0-9]+$/.test(v);
+    }
 
-      // 常见 Awin click_id 格式特征，例如 1011lCm5kqB7
-      if (/^\d{3,}l[A-Za-z0-9]+$/.test(v)) return true;
-
-      return false;
+    function isPartnerizeStyleClickRef(value) {
+      const v = String(value || "").trim();
+      if (!v) return false;
+      return /^\d{3,}l[A-Za-z0-9]+$/.test(v);
     }
 
     function inferPublisherFromText(text) {
@@ -226,6 +228,7 @@ module.exports = async (req, res) => {
       if (!t) return null;
 
       const rules = [
+        { match: /cnetcommerce/, publisher: "CNET", subSite: "CNET Commerce", type: "publisher", confidence: "high" },
         { match: /mattressnrd|mattressnerd/, publisher: "Mattress Nerd", subSite: "Mattress Nerd", type: "publisher", confidence: "high" },
         { match: /mattressadvisor|mattress advisor/, publisher: "Mattress Advisor", subSite: "Mattress Advisor", type: "publisher", confidence: "high" },
         { match: /sleepfoundation|sleep foundation/, publisher: "Sleep Foundation", subSite: "Sleep Foundation", type: "publisher", confidence: "high" },
@@ -312,6 +315,7 @@ module.exports = async (req, res) => {
       "ranEAID",
       "ranSiteID",
       "click_id",
+      "clickref",
       "awc",
       "source",
       "sv1",
@@ -358,7 +362,9 @@ module.exports = async (req, res) => {
       "tw_source",
       "tw_adid",
       "tw_campaign",
-      "coupon"
+      "coupon",
+      "pjID",
+      "pjMID"
     ].forEach(captureParam);
 
     if (isAmazonHost()) {
@@ -626,7 +632,7 @@ module.exports = async (req, res) => {
       addDecision("Impact signals found in URL parameters.");
     }
 
-    // AWIN v2.0.1 强化版
+    // AWIN
     let awinScore = 0;
     const awinSignals = [];
 
@@ -946,7 +952,7 @@ module.exports = async (req, res) => {
       addDecision("FlexOffers signals found in URL.");
     }
 
-    // PARTNERIZE
+    // PARTNERIZE v2.0.2
     let partnerizeScore = 0;
     const partnerizeSignals = [];
 
@@ -954,13 +960,45 @@ module.exports = async (req, res) => {
       partnerizeScore += 38;
       partnerizeSignals.push("pjID");
     }
+
     if (hasParam("pjMID")) {
       partnerizeScore += 34;
       partnerizeSignals.push("pjMID");
     }
+
+    if (hasParam("clickref")) {
+      partnerizeScore += 34;
+      partnerizeSignals.push("clickref");
+
+      if (isPartnerizeStyleClickRef(getParam("clickref"))) {
+        partnerizeScore += 10;
+        partnerizeSignals.push("partnerize-style clickref pattern");
+      }
+    }
+
     if (host.includes("partnerize")) {
       partnerizeScore += 25;
       partnerizeSignals.push("partnerize host");
+    }
+
+    if (valueContains("utm_source", ["partnerize"])) {
+      partnerizeScore += 28;
+      partnerizeSignals.push("utm_source=partnerize");
+    }
+
+    if (isAffiliateLikeMedium()) {
+      partnerizeScore += 8;
+      partnerizeSignals.push("utm_medium=affiliate/aff");
+    }
+
+    if (valueContains("utm_campaign", ["cnet", "cnetcommerce"])) {
+      partnerizeScore += 8;
+      partnerizeSignals.push("utm_campaign publisher hint");
+    }
+
+    if (publisher === "CNET") {
+      partnerizeScore += 6;
+      partnerizeSignals.push("publisher=CNET");
     }
 
     if (partnerizeScore >= 40) {
