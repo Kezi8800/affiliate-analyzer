@@ -443,8 +443,6 @@ function detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain) {
     { name: "ClickBank", keys: ["cbitems", "cbfid"] },
     { name: "JVZoo", keys: ["jv", "affiliate"] },
     { name: "Digistore24", keys: ["ds24"] },
-
-    // eBay Partner Network
     {
       name: "eBay Partner Network",
       keys: ["mkevt", "toolid", "campid", "siteid", "mkrid", "mkcid", "customid"]
@@ -459,7 +457,6 @@ function detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain) {
     }
   });
 
-  // Impact helper signals
   if (hasParam(queryMap, "afsrc")) {
     params.afsrc = queryMap.afsrc;
   }
@@ -468,12 +465,10 @@ function detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain) {
     params.utm_source = queryMap.utm_source;
   }
 
-  // eBay helper signals
   if (hostname.includes("ebay.com") && (hasParam(queryMap, "mkrid") || hasParam(queryMap, "campid"))) {
     items.push("eBay Partner Network");
   }
 
-  // URL/domain-based helpers
   if (lowerUrl.includes("wayward")) items.push("Wayward");
   if (lowerUrl.includes("skimlinks")) items.push("Skimlinks");
   if (lowerUrl.includes("viglink") || lowerUrl.includes("sovrn")) items.push("Sovrn / VigLink");
@@ -501,34 +496,61 @@ function detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain) {
 }
 
 // --------------------------------------------------
-// Amazon layer
+// Amazon layer - priority fixed
 // --------------------------------------------------
 
 function detectAmazonLayer(queryMap, lowerUrl, hostname, redirectChain) {
   const items = [];
   const params = {};
 
-  if (hasParam(queryMap, "tag")) {
-    items.push("Amazon Associates");
-    params.tag = queryMap.tag;
-  }
+  const refParam = String(queryMap.ref_ || "");
+  const linkCode = String(queryMap.linkCode || "").toLowerCase();
 
   const attributionKeys = ["maas", "aa_campaignid", "aa_adgroupid", "aa_creativeid"];
-  if (hasAnyParam(queryMap, attributionKeys) || lowerUrl.includes("ref_=aa_maas")) {
-    items.push("Amazon Attribution");
-    Object.assign(params, pickParams(queryMap, attributionKeys));
-    if (lowerUrl.includes("ref_=aa_maas")) params.ref_ = "aa_maas";
+
+  const hasAttribution =
+    hasAnyParam(queryMap, attributionKeys) ||
+    lowerUrl.includes("ref_=aa_maas");
+
+  const hasCreatorConnectionsStrong =
+    hasParam(queryMap, "campaignId") ||
+    hasParam(queryMap, "ascsubtag") ||
+    linkCode === "tr1";
+
+  const hasAssociatesStrong =
+    hasParam(queryMap, "tag") ||
+    refParam === "as_li_ss_tl" ||
+    refParam === "as_li_tl" ||
+    refParam === "as_li_ss_il" ||
+    ["ll1", "ll2", "sl1", "sl2", "as2", "assoc"].includes(linkCode);
+
+  // keep linkId as supporting evidence only
+  if (hasParam(queryMap, "linkId")) {
+    params.linkId = queryMap.linkId;
   }
 
-  const accSignals = [];
-  if (hasParam(queryMap, "campaignId")) accSignals.push("campaignId");
-  if (hasParam(queryMap, "linkId")) accSignals.push("linkId");
-  if (hasParam(queryMap, "ascsubtag")) accSignals.push("ascsubtag");
-  if (String(queryMap.linkCode || "").toLowerCase() === "tr1") accSignals.push("linkCode=tr1");
+  // Amazon Attribution - highest priority
+  if (hasAttribution) {
+    items.push("Amazon Attribution");
+    Object.assign(params, pickParams(queryMap, attributionKeys));
+    if (lowerUrl.includes("ref_=aa_maas")) {
+      params.ref_ = "aa_maas";
+    }
+  }
 
-  if (accSignals.length) {
+  // Creator Connections - only with strong creator signals
+  if (hasCreatorConnectionsStrong) {
     items.push("Amazon Creator Connections");
-    Object.assign(params, pickParams(queryMap, ["campaignId", "linkId", "ascsubtag", "linkCode"]));
+    Object.assign(params, pickParams(queryMap, ["campaignId", "ascsubtag", "linkCode"]));
+  }
+
+  // Associates
+  if (hasAssociatesStrong) {
+    items.push("Amazon Associates");
+    Object.assign(params, pickParams(queryMap, ["tag", "linkCode"]));
+    if (refParam) {
+      params.ref_ = refParam;
+    }
   }
 
   if (hostname.includes("amazon.")) {
@@ -625,11 +647,11 @@ function scorePlatforms({ adsLayer, affiliateLayer, amazonLayer, hostname, redir
   }
 
   if (amazonLayer.items.includes("Amazon Creator Connections")) {
-    addCandidate("Amazon Creator Connections", 92, ["campaignId", "linkId", "ascsubtag", "Amazon creator layer"]);
+    addCandidate("Amazon Creator Connections", 92, ["campaignId", "ascsubtag", "linkCode=tr1", "Amazon creator layer"]);
   }
 
   if (amazonLayer.items.includes("Amazon Associates")) {
-    addCandidate("Amazon Associates", 88, ["tag", "Amazon affiliate tag"]);
+    addCandidate("Amazon Associates", 88, ["tag", "associate-style ref/linkCode", "Amazon affiliate tag"]);
   }
 
   affiliateLayer.items.forEach((name) => {
@@ -714,7 +736,7 @@ function inferCommissionEngine({ adsLayer, affiliateLayer, amazonLayer, primaryP
     reason = "Creator-oriented Amazon parameters were detected, suggesting creator or influencer commission logic.";
   } else if (hasAmazonAssociates) {
     primaryClaimer = "Amazon Associates";
-    reason = "Amazon Associates tag was detected as the clearest direct commission indicator.";
+    reason = "Amazon Associates signals were detected as the clearest direct commission indicator.";
   } else if (hasAffiliate) {
     primaryClaimer = affiliateLayer.items[0];
     reason = "Affiliate network identifiers were detected and likely control downstream merchant-side attribution.";
