@@ -171,7 +171,9 @@ export default async function handler(req, res) {
       debug: {
         hostname,
         query_keys: Object.keys(queryMap),
-        router_detected: redirectChain.router_layer.detected
+        router_detected: redirectChain.router_layer.detected,
+        amazon_classification: amazonLayer.classification || "Unknown",
+        amazon_decision_basis: amazonLayer.decision_basis || []
       }
     });
   } catch (error) {
@@ -355,7 +357,8 @@ function detectRouterLayer(hostname, lowerUrl, queryMap) {
     { name: "Partnerize Redirect", match: ["prf.hn"] },
     { name: "TradeDoubler Redirect", match: ["clk.tradedoubler.com"] },
     { name: "Webgains Redirect", match: ["track.webgains.com"] },
-    { name: "FlexOffers Redirect", match: ["track.flexlinkspro.com"] }
+    { name: "FlexOffers Redirect", match: ["track.flexlinkspro.com"] },
+    { name: "Geniuslink", match: ["geni.us", "geniuslink.com"] }
   ];
 
   routerDomains.forEach((rule) => {
@@ -364,6 +367,11 @@ function detectRouterLayer(hostname, lowerUrl, queryMap) {
       reasons.push(`Matched router domain pattern: ${rule.match[0]}`);
     }
   });
+
+  if (hasParam(queryMap, "geniuslink")) {
+    items.push("Geniuslink");
+    reasons.push("Detected geniuslink parameter.");
+  }
 
   const nestedDest = pickNestedDestination(queryMap);
   if (nestedDest) {
@@ -392,7 +400,8 @@ function detectAdsLayer(queryMap) {
     { key: "wbraid", label: "Google Ads (wbraid)" },
     { key: "fbclid", label: "Meta Ads" },
     { key: "ttclid", label: "TikTok Ads" },
-    { key: "msclkid", label: "Microsoft Ads" }
+    { key: "msclkid", label: "Microsoft Ads" },
+    { key: "gad_source", label: "Google Ads / Google Surface" }
   ];
 
   rules.forEach(({ key, label }) => {
@@ -426,15 +435,15 @@ function detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain) {
     { name: "Awin", keys: ["awc"] },
     { name: "Rakuten", keys: ["ranMID", "ranEAID", "ranSiteID"] },
     { name: "ShareASale", keys: ["shareasale", "sscid", "afftrack"] },
-    { name: "Partnerize", keys: ["pjid", "pjmid"] },
+    { name: "Partnerize", keys: ["pjid", "pjmid", "clickref"] },
     { name: "Webgains", keys: ["wgcampaignid", "wgprogramid"] },
     { name: "TradeDoubler", keys: ["tduid", "trafficsourceid"] },
     { name: "FlexOffers", keys: ["faid", "fobs"] },
     { name: "Sovrn / VigLink", keys: ["vglnk", "vgtid"] },
     { name: "Skimlinks", keys: ["skimlinks"] },
     { name: "PartnerStack", keys: ["ps_xid", "ps_partner_key"] },
-    { name: "PartnerBoost", keys: ["pb_id", "pb_clickid", "pb_source"] },
-    { name: "Everflow", keys: ["evclid", "everflow_id"] },
+    { name: "PartnerBoost", keys: ["pb", "pb_id", "pb_clickid", "pb_source"] },
+    { name: "Everflow", keys: ["evclid", "everflow_id", "oid", "affid"] },
     { name: "TUNE", keys: ["tid", "aff_id", "offer_id"] },
     { name: "Admitad", keys: ["admitad_uid"] },
     { name: "Refersion", keys: ["refersion"] },
@@ -460,6 +469,7 @@ function detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain) {
   if (hasParam(queryMap, "afsrc")) {
     params.afsrc = queryMap.afsrc;
   }
+
   if (String(queryMap.utm_source || "").toLowerCase() === "impact") {
     items.push("Impact");
     params.utm_source = queryMap.utm_source;
@@ -479,10 +489,11 @@ function detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain) {
   if (hostname.includes("track.webgains.com")) items.push("Webgains");
   if (hostname.includes("clk.tradedoubler.com")) items.push("TradeDoubler");
   if (hostname.includes("impact.com") || hostname.includes("impactradius.com")) items.push("Impact");
+  if (hostname.includes("geni.us") || hostname.includes("geniuslink.com")) items.push("Geniuslink");
 
   if (redirectChain.router_layer.detected) {
     redirectChain.router_layer.items.forEach((item) => {
-      if (/Skimlinks|Sovrn|Impact|CJ|Awin|Rakuten|Partnerize|TradeDoubler|Webgains|FlexOffers/i.test(item)) {
+      if (/Skimlinks|Sovrn|Impact|CJ|Awin|Rakuten|Partnerize|TradeDoubler|Webgains|FlexOffers|Geniuslink/i.test(item)) {
         items.push(item.replace(" Redirect", "").replace(" Tracking Redirect", ""));
       }
     });
@@ -496,61 +507,78 @@ function detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain) {
 }
 
 // --------------------------------------------------
-// Amazon layer - priority fixed
+// Amazon layer - latest stable logic
 // --------------------------------------------------
 
 function detectAmazonLayer(queryMap, lowerUrl, hostname, redirectChain) {
   const items = [];
   const params = {};
+  const decisionBasis = [];
 
   const refParam = String(queryMap.ref_ || "");
   const linkCode = String(queryMap.linkCode || "").toLowerCase();
 
   const attributionKeys = ["maas", "aa_campaignid", "aa_adgroupid", "aa_creativeid"];
 
-  const hasAttribution =
-    hasAnyParam(queryMap, attributionKeys) ||
-    lowerUrl.includes("ref_=aa_maas");
+  const hasAttributionParams = hasAnyParam(queryMap, attributionKeys);
+  const hasAttributionRef = lowerUrl.includes("ref_=aa_maas") || refParam === "aa_maas";
+  const hasAttribution = hasAttributionParams || hasAttributionRef;
 
-  const hasCreatorConnectionsStrong =
-    hasParam(queryMap, "campaignId") ||
-    hasParam(queryMap, "ascsubtag") ||
-    linkCode === "tr1";
+  const hasTag = hasParam(queryMap, "tag");
+  const hasCampaignId = hasParam(queryMap, "campaignId");
+  const hasLinkId = hasParam(queryMap, "linkId");
+  const hasAscSubtag = hasParam(queryMap, "ascsubtag");
 
-  const hasAssociatesStrong =
-    hasParam(queryMap, "tag") ||
+  const isCreatorLinkCode = linkCode === "tr1";
+  const isAssociatesLinkCode = ["ll1", "ll2", "sl1", "sl2", "as2", "assoc", "ur2"].includes(linkCode);
+
+  const isAssociatesRef =
     refParam === "as_li_ss_tl" ||
     refParam === "as_li_tl" ||
-    refParam === "as_li_ss_il" ||
-    ["ll1", "ll2", "sl1", "sl2", "as2", "assoc"].includes(linkCode);
+    refParam === "as_li_ss_il";
 
-  // keep linkId as supporting evidence only
-  if (hasParam(queryMap, "linkId")) {
-    params.linkId = queryMap.linkId;
-  }
+  const isAmazonDomain = hostname.includes("amazon.") || redirectChain.final_destination.is_amazon;
 
-  // Amazon Attribution - highest priority
+  const hasAssociatesStrong =
+    hasTag ||
+    isAssociatesRef ||
+    isAssociatesLinkCode;
+
+  // ACC must be stronger and cleaner than plain ascsubtag.
+  // ascsubtag alone is NOT enough if tag exists.
+  const hasCreatorConnectionsStrong =
+    hasCampaignId ||
+    isCreatorLinkCode ||
+    (
+      hasAscSubtag &&
+      !hasTag &&
+      !hasAttribution &&
+      !isAssociatesRef &&
+      !isAssociatesLinkCode
+    );
+
   if (hasAttribution) {
     items.push("Amazon Attribution");
     Object.assign(params, pickParams(queryMap, attributionKeys));
-    if (lowerUrl.includes("ref_=aa_maas")) {
-      params.ref_ = "aa_maas";
-    }
-  }
-
-  // Creator Connections - only with strong creator signals
-  if (hasCreatorConnectionsStrong) {
+    if (hasAttributionRef) params.ref_ = "aa_maas";
+    decisionBasis.push("Detected Amazon Attribution parameters/ref signal.");
+  } else if (hasCreatorConnectionsStrong) {
     items.push("Amazon Creator Connections");
     Object.assign(params, pickParams(queryMap, ["campaignId", "ascsubtag", "linkCode"]));
-  }
-
-  // Associates
-  if (hasAssociatesStrong) {
+    if (hasLinkId) params.linkId = queryMap.linkId;
+    decisionBasis.push("Detected strong ACC signal: campaignId / linkCode=tr1 / clean ascsubtag without tag.");
+  } else if (hasAssociatesStrong) {
     items.push("Amazon Associates");
     Object.assign(params, pickParams(queryMap, ["tag", "linkCode"]));
-    if (refParam) {
-      params.ref_ = refParam;
+    if (refParam) params.ref_ = refParam;
+    if (hasAscSubtag) params.ascsubtag = queryMap.ascsubtag;
+    if (hasLinkId) params.linkId = queryMap.linkId;
+    decisionBasis.push("Detected Associates signal: tag / associates-style ref / associates-style linkCode.");
+    if (hasAscSubtag) {
+      decisionBasis.push("ascsubtag present but treated as supporting subtag, not ACC, because Associates signal exists.");
     }
+  } else if (isAmazonDomain) {
+    decisionBasis.push("Amazon destination detected, but no strong attribution/ACC/ASS signal.");
   }
 
   if (hostname.includes("amazon.")) {
@@ -561,10 +589,17 @@ function detectAmazonLayer(queryMap, lowerUrl, hostname, redirectChain) {
     params.final_destination_amazon = redirectChain.final_destination.domain;
   }
 
+  let classification = "Amazon Destination Only";
+  if (items.includes("Amazon Attribution")) classification = "Amazon Attribution";
+  else if (items.includes("Amazon Creator Connections")) classification = "Amazon Creator Connections";
+  else if (items.includes("Amazon Associates")) classification = "Amazon Associates";
+
   return {
     detected: items.length > 0 || redirectChain.final_destination.is_amazon,
     items: unique(items),
-    params
+    params,
+    classification,
+    decision_basis: decisionBasis
   };
 }
 
@@ -598,6 +633,10 @@ function detectPublisher(hostname, queryMap, lowerUrl, redirectChain) {
     publisher = "Future Publishing";
     type = "Media Publisher";
     confidence = "Medium";
+  } else if (hostname.includes("tomsguide")) {
+    publisher = "Tom's Guide";
+    type = "Media Publisher";
+    confidence = "High";
   }
 
   if (hasParam(queryMap, "utm_source")) {
@@ -615,6 +654,12 @@ function detectPublisher(hostname, queryMap, lowerUrl, redirectChain) {
   if (redirectChain.router_layer.items.includes("Skimlinks")) {
     if (publisher === "Unknown") publisher = "Skimlinks";
     type = "Sub-affiliate / Link Router";
+    confidence = "Medium";
+  }
+
+  if (redirectChain.router_layer.items.includes("Geniuslink") && publisher === "Unknown") {
+    publisher = "Geniuslink";
+    type = "Link Router";
     confidence = "Medium";
   }
 
@@ -642,16 +687,26 @@ function scorePlatforms({ adsLayer, affiliateLayer, amazonLayer, hostname, redir
     });
   }
 
-  if (amazonLayer.items.includes("Amazon Attribution")) {
-    addCandidate("Amazon Attribution", 95, ["maas", "aa_campaignid", "Amazon attribution layer"]);
+  if (amazonLayer.classification === "Amazon Attribution") {
+    addCandidate("Amazon Attribution", 96, [
+      "maas / aa_* / ref_=aa_maas",
+      "Amazon attribution layer",
+      "highest-priority Amazon classification"
+    ]);
   }
 
-  if (amazonLayer.items.includes("Amazon Creator Connections")) {
-    addCandidate("Amazon Creator Connections", 92, ["campaignId", "ascsubtag", "linkCode=tr1", "Amazon creator layer"]);
+  if (amazonLayer.classification === "Amazon Creator Connections") {
+    addCandidate("Amazon Creator Connections", 91, [
+      "campaignId / linkCode=tr1 / clean ascsubtag",
+      "Amazon creator layer"
+    ]);
   }
 
-  if (amazonLayer.items.includes("Amazon Associates")) {
-    addCandidate("Amazon Associates", 88, ["tag", "associate-style ref/linkCode", "Amazon affiliate tag"]);
+  if (amazonLayer.classification === "Amazon Associates") {
+    addCandidate("Amazon Associates", 90, [
+      "tag / associates-style ref / associates-style linkCode",
+      "Amazon affiliate tag"
+    ]);
   }
 
   affiliateLayer.items.forEach((name) => {
@@ -664,6 +719,7 @@ function scorePlatforms({ adsLayer, affiliateLayer, amazonLayer, hostname, redir
     if (name === "Wayward") score = 80;
     if (name === "Skimlinks") score = 82;
     if (name === "Sovrn / VigLink") score = 82;
+    if (name === "Geniuslink") score = 76;
     addCandidate(name, score, [name, "affiliate network signal"]);
   });
 
@@ -678,7 +734,9 @@ function scorePlatforms({ adsLayer, affiliateLayer, amazonLayer, hostname, redir
 
   if (redirectChain.router_layer.detected) {
     redirectChain.router_layer.items.forEach((name) => {
-      addCandidate(name, 70, [name, "router layer"]);
+      let score = 70;
+      if (name === "Geniuslink") score = 68;
+      addCandidate(name, score, [name, "router layer"]);
     });
   }
 
@@ -717,10 +775,12 @@ function inferTrafficType({ adsLayer, affiliateLayer, amazonLayer }) {
 function inferCommissionEngine({ adsLayer, affiliateLayer, amazonLayer, primaryPlatform, redirectChain }) {
   const hasAds = adsLayer.detected;
   const hasAffiliate = affiliateLayer.detected;
-  const hasAmazonAttribution = amazonLayer.items.includes("Amazon Attribution");
-  const hasAmazonAssociates = amazonLayer.items.includes("Amazon Associates");
-  const hasAmazonACC = amazonLayer.items.includes("Amazon Creator Connections");
   const hasRouter = redirectChain.router_layer.detected;
+
+  const amazonClassification = amazonLayer.classification || "Unknown";
+  const hasAmazonAttribution = amazonClassification === "Amazon Attribution";
+  const hasAmazonACC = amazonClassification === "Amazon Creator Connections";
+  const hasAmazonAssociates = amazonClassification === "Amazon Associates";
 
   let primaryClaimer = primaryPlatform.name || "Unknown";
   let secondaryClaimers = [];
@@ -730,13 +790,13 @@ function inferCommissionEngine({ adsLayer, affiliateLayer, amazonLayer, primaryP
 
   if (hasAmazonAttribution) {
     primaryClaimer = "Amazon Attribution";
-    reason = "Amazon Attribution parameters were detected and appear to be the strongest measurable attribution layer.";
+    reason = "Amazon Attribution parameters were detected and classified as the dominant Amazon measurement layer.";
   } else if (hasAmazonACC) {
     primaryClaimer = "Amazon Creator Connections";
-    reason = "Creator-oriented Amazon parameters were detected, suggesting creator or influencer commission logic.";
+    reason = "Strong Creator Connections signals were detected and outranked generic Amazon destination indicators.";
   } else if (hasAmazonAssociates) {
     primaryClaimer = "Amazon Associates";
-    reason = "Amazon Associates signals were detected as the clearest direct commission indicator.";
+    reason = "Associates signals were detected as the clearest direct commission indicator.";
   } else if (hasAffiliate) {
     primaryClaimer = affiliateLayer.items[0];
     reason = "Affiliate network identifiers were detected and likely control downstream merchant-side attribution.";
@@ -754,7 +814,12 @@ function inferCommissionEngine({ adsLayer, affiliateLayer, amazonLayer, primaryP
 
   secondaryClaimers = unique(secondaryClaimers).filter((v) => v !== primaryClaimer);
 
-  const activeLayerCount = [hasAds, hasAffiliate, amazonLayer.detected, hasRouter].filter(Boolean).length;
+  const activeLayerCount = [
+    hasAds,
+    hasAffiliate,
+    amazonLayer.detected,
+    hasRouter
+  ].filter(Boolean).length;
 
   if (activeLayerCount >= 4) {
     conflictLevel = "High";
@@ -775,6 +840,7 @@ function inferCommissionEngine({ adsLayer, affiliateLayer, amazonLayer, primaryP
     conflict_level: conflictLevel,
     decision_basis: [
       `Top scored platform: ${primaryPlatform.name || "Unknown"}`,
+      `Amazon classification: ${amazonClassification}`,
       `Conflict level: ${conflictLevel}`,
       `Final destination: ${redirectChain.final_destination.domain || "Unknown"}`,
       reason
