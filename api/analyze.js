@@ -1,17 +1,45 @@
 export default async function handler(req, res) {
+  // -----------------------------------
+  // CORS
+  // -----------------------------------
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({
+      error: "Method not allowed",
+      detail: "Use POST to submit a URL for analysis."
+    });
   }
 
   try {
-    const { url } = req.body || {};
+    const body = req.body || {};
+    const { url } = body;
 
     if (!url || typeof url !== "string") {
-      return res.status(400).json({ error: "Missing or invalid url" });
+      return res.status(400).json({
+        error: "Missing or invalid url",
+        detail: "Request body must contain a non-empty string field: url"
+      });
     }
 
     const normalizedUrl = normalizeUrl(url);
-    const parsed = new URL(normalizedUrl);
+    let parsed;
+
+    try {
+      parsed = new URL(normalizedUrl);
+    } catch (e) {
+      return res.status(400).json({
+        error: "Invalid URL",
+        detail: `Could not parse URL: ${normalizedUrl}`
+      });
+    }
+
     const hostname = parsed.hostname.toLowerCase();
     const lowerUrl = normalizedUrl.toLowerCase();
     const queryEntries = [...parsed.searchParams.entries()];
@@ -20,7 +48,7 @@ export default async function handler(req, res) {
     // 1) Redirect / destination / router analysis
     const redirectChain = analyzeRedirectChain(parsed, queryMap, lowerUrl);
 
-    // 2) Detect layers from the entry URL
+    // 2) Detect layers from entry URL
     const adsLayer = detectAdsLayer(queryMap);
     const affiliateLayer = detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain);
     const amazonLayer = detectAmazonLayer(queryMap, lowerUrl, hostname, redirectChain);
@@ -82,8 +110,12 @@ export default async function handler(req, res) {
     const participantStack = {
       paid_media: adsLayer.detected ? adsLayer.items.join(", ") : "No paid media click IDs detected",
       affiliate_network: affiliateLayer.detected ? affiliateLayer.items.join(", ") : "No affiliate network signals detected",
-      amazon_layer: amazonLayer.detected ? amazonLayer.items.join(", ") : "No Amazon-specific layer detected",
-      router_layer: redirectChain.router_layer.detected ? redirectChain.router_layer.items.join(", ") : "No router layer detected",
+      amazon_layer: amazonLayer.detected
+        ? (amazonLayer.items.length ? amazonLayer.items.join(", ") : "Amazon destination detected")
+        : "No Amazon-specific layer detected",
+      router_layer: redirectChain.router_layer.detected
+        ? redirectChain.router_layer.items.join(", ")
+        : "No router layer detected",
       publisher: publisher.publisher !== "Unknown"
         ? `${publisher.publisher}${publisher.sub_site && publisher.sub_site !== "-" ? " / " + publisher.sub_site : ""}`
         : "Not clearly identified",
@@ -112,7 +144,7 @@ export default async function handler(req, res) {
       redirectChain
     });
 
-    const response = {
+    return res.status(200).json({
       analyzed_url: normalizedUrl,
       confidence: primaryPlatform.confidence,
       traffic_type: trafficType,
@@ -135,19 +167,30 @@ export default async function handler(req, res) {
       commission_engine: commissionEngine,
       participant_stack: participantStack,
       conflict_insight: conflictInsight,
-      redirect_chain: redirectChain
-    };
-
-    return res.status(200).json(response);
+      redirect_chain: redirectChain,
+      debug: {
+        hostname,
+        query_keys: Object.keys(queryMap),
+        router_detected: redirectChain.router_layer.detected
+      }
+    });
   } catch (error) {
+    console.error("Analyze API error:", error);
+
     return res.status(500).json({
-      error: error.message || "Unexpected server error"
+      error: "Unexpected server error",
+      detail: error && error.message ? error.message : "Unknown internal error",
+      stack: process.env.NODE_ENV !== "production" ? error.stack : undefined
     });
   }
 }
 
+// --------------------------------------------------
+// Basic helpers
+// --------------------------------------------------
+
 function normalizeUrl(input) {
-  const trimmed = input.trim();
+  const trimmed = String(input || "").trim();
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
 }
@@ -239,9 +282,10 @@ function pickNestedDestination(queryMap) {
   return "";
 }
 
-// --------------------
+// --------------------------------------------------
 // Redirect / destination / router analysis
-// --------------------
+// --------------------------------------------------
+
 function analyzeRedirectChain(parsedUrl, queryMap, lowerUrl) {
   const entryUrl = parsedUrl.toString();
   const entryDomain = parsedUrl.hostname.toLowerCase();
@@ -251,7 +295,7 @@ function analyzeRedirectChain(parsedUrl, queryMap, lowerUrl) {
 
   let finalUrl = nestedDestination || entryUrl;
   let finalDomain = getDomain(finalUrl) || entryDomain;
-  let finalPath = "";
+  let finalPath = "/";
 
   try {
     finalPath = new URL(finalUrl).pathname || "/";
@@ -259,13 +303,14 @@ function analyzeRedirectChain(parsedUrl, queryMap, lowerUrl) {
     finalPath = parsedUrl.pathname || "/";
   }
 
-  const steps = [];
-  steps.push({
-    type: "entry",
-    label: "Original URL",
-    domain: entryDomain,
-    url: entryUrl
-  });
+  const steps = [
+    {
+      type: "entry",
+      label: "Original URL",
+      domain: entryDomain,
+      url: entryUrl
+    }
+  ];
 
   if (routerMatches.detected) {
     steps.push({
@@ -276,21 +321,12 @@ function analyzeRedirectChain(parsedUrl, queryMap, lowerUrl) {
     });
   }
 
-  if (nestedDestination) {
-    steps.push({
-      type: "destination",
-      label: "Final Destination",
-      domain: finalDomain,
-      url: finalUrl
-    });
-  } else {
-    steps.push({
-      type: "destination",
-      label: "Final Destination",
-      domain: finalDomain,
-      url: finalUrl
-    });
-  }
+  steps.push({
+    type: "destination",
+    label: "Final Destination",
+    domain: finalDomain,
+    url: finalUrl
+  });
 
   return {
     entry_url: entryUrl,
@@ -312,7 +348,6 @@ function detectRouterLayer(hostname, lowerUrl, queryMap) {
   const routerDomains = [
     { name: "Skimlinks", match: ["go.skimresources.com", "skimresources.com", "skimlinks.com"] },
     { name: "Sovrn / VigLink", match: ["redirect.viglink.com", "viglink.com", "sovrn.com"] },
-    { name: "Link Router", match: ["linksynergy.com"] },
     { name: "Impact Tracking Redirect", match: ["impact.com", "impactradius.com"] },
     { name: "CJ Redirect", match: ["jdoqocy.com", "tkqlhce.com", "dpbolvw.net", "anrdoezrs.net"] },
     { name: "Awin Redirect", match: ["awin1.com"] },
@@ -343,9 +378,10 @@ function detectRouterLayer(hostname, lowerUrl, queryMap) {
   };
 }
 
-// --------------------
+// --------------------------------------------------
 // Ads layer
-// --------------------
+// --------------------------------------------------
+
 function detectAdsLayer(queryMap) {
   const items = [];
   const params = {};
@@ -373,15 +409,19 @@ function detectAdsLayer(queryMap) {
   };
 }
 
-// --------------------
+// --------------------------------------------------
 // Affiliate layer
-// --------------------
+// --------------------------------------------------
+
 function detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain) {
   const items = [];
   const params = {};
 
   const rules = [
-    { name: "Impact", keys: ["irclickid"] },
+    {
+      name: "Impact",
+      keys: ["irclickid", "ir_partnerid", "ir_adid", "ir_campaignid", "irgwc"]
+    },
     { name: "CJ Affiliate", keys: ["cjevent"] },
     { name: "Awin", keys: ["awc"] },
     { name: "Rakuten", keys: ["ranMID", "ranEAID", "ranSiteID"] },
@@ -413,6 +453,16 @@ function detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain) {
     }
   });
 
+  // Impact helper signals
+  if (hasParam(queryMap, "afsrc")) {
+    params.afsrc = queryMap.afsrc;
+  }
+  if (String(queryMap.utm_source || "").toLowerCase() === "impact") {
+    items.push("Impact");
+    params.utm_source = queryMap.utm_source;
+  }
+
+  // URL/domain-based helpers
   if (lowerUrl.includes("wayward")) items.push("Wayward");
   if (lowerUrl.includes("skimlinks")) items.push("Skimlinks");
   if (lowerUrl.includes("viglink") || lowerUrl.includes("sovrn")) items.push("Sovrn / VigLink");
@@ -422,6 +472,7 @@ function detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain) {
   if (hostname.includes("click.linksynergy.com")) items.push("Rakuten");
   if (hostname.includes("track.webgains.com")) items.push("Webgains");
   if (hostname.includes("clk.tradedoubler.com")) items.push("TradeDoubler");
+  if (hostname.includes("impact.com") || hostname.includes("impactradius.com")) items.push("Impact");
 
   if (redirectChain.router_layer.detected) {
     redirectChain.router_layer.items.forEach((item) => {
@@ -438,9 +489,10 @@ function detectAffiliateLayer(queryMap, lowerUrl, hostname, redirectChain) {
   };
 }
 
-// --------------------
+// --------------------------------------------------
 // Amazon layer
-// --------------------
+// --------------------------------------------------
+
 function detectAmazonLayer(queryMap, lowerUrl, hostname, redirectChain) {
   const items = [];
   const params = {};
@@ -483,9 +535,10 @@ function detectAmazonLayer(queryMap, lowerUrl, hostname, redirectChain) {
   };
 }
 
-// --------------------
+// --------------------------------------------------
 // Publisher
-// --------------------
+// --------------------------------------------------
+
 function detectPublisher(hostname, queryMap, lowerUrl, redirectChain) {
   let publisher = "Unknown";
   let subSite = "-";
@@ -540,9 +593,10 @@ function detectPublisher(hostname, queryMap, lowerUrl, redirectChain) {
   };
 }
 
-// --------------------
+// --------------------------------------------------
 // Scoring
-// --------------------
+// --------------------------------------------------
+
 function scorePlatforms({ adsLayer, affiliateLayer, amazonLayer, hostname, redirectChain }) {
   const candidates = [];
 
@@ -569,7 +623,7 @@ function scorePlatforms({ adsLayer, affiliateLayer, amazonLayer, hostname, redir
 
   affiliateLayer.items.forEach((name) => {
     let score = 78;
-    if (name === "Impact") score = 86;
+    if (name === "Impact") score = 88;
     if (name === "CJ Affiliate") score = 84;
     if (name === "Awin") score = 84;
     if (name === "Rakuten") score = 84;
@@ -603,9 +657,10 @@ function scorePlatforms({ adsLayer, affiliateLayer, amazonLayer, hostname, redir
     .filter((item, idx, arr) => arr.findIndex((x) => x.name === item.name) === idx);
 }
 
-// --------------------
+// --------------------------------------------------
 // Traffic type
-// --------------------
+// --------------------------------------------------
+
 function inferTrafficType({ adsLayer, affiliateLayer, amazonLayer }) {
   const hasAds = adsLayer.detected;
   const hasAffiliate = affiliateLayer.detected;
@@ -621,9 +676,10 @@ function inferTrafficType({ adsLayer, affiliateLayer, amazonLayer }) {
   return "Direct / Unknown";
 }
 
-// --------------------
+// --------------------------------------------------
 // Commission engine
-// --------------------
+// --------------------------------------------------
+
 function inferCommissionEngine({ adsLayer, affiliateLayer, amazonLayer, primaryPlatform, redirectChain }) {
   const hasAds = adsLayer.detected;
   const hasAffiliate = affiliateLayer.detected;
@@ -692,9 +748,10 @@ function inferCommissionEngine({ adsLayer, affiliateLayer, amazonLayer, primaryP
   };
 }
 
-// --------------------
+// --------------------------------------------------
 // Conflict insight
-// --------------------
+// --------------------------------------------------
+
 function buildConflictInsight({ adsLayer, affiliateLayer, amazonLayer, commissionEngine, redirectChain }) {
   const activeLayerCount = [
     adsLayer.detected,
@@ -719,9 +776,10 @@ function buildConflictInsight({ adsLayer, affiliateLayer, amazonLayer, commissio
   return { title, message };
 }
 
-// --------------------
+// --------------------------------------------------
 // Summary
-// --------------------
+// --------------------------------------------------
+
 function buildSummary({
   primaryPlatform,
   trafficType,
@@ -749,8 +807,10 @@ function buildSummary({
     parts.push(`Router layer detected: ${redirectChain.router_layer.items.join(", ")}.`);
   }
 
-  if (amazonLayer.detected) {
+  if (amazonLayer.detected && amazonLayer.items.length) {
     parts.push(`Amazon-related layers found: ${amazonLayer.items.join(", ")}.`);
+  } else if (redirectChain.final_destination.is_amazon) {
+    parts.push(`Final destination resolves to Amazon.`);
   }
 
   if (publisher.publisher !== "Unknown") {
