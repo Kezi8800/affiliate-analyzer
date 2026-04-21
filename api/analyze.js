@@ -99,6 +99,7 @@ module.exports = async (req, res) => {
 
     function addCandidate(name, score, confidenceLevel, signals) {
       const existing = platformCandidates.find((x) => x.name === name);
+
       if (!existing) {
         platformCandidates.push({
           name,
@@ -210,20 +211,29 @@ module.exports = async (req, res) => {
       return affiliateHosts.some((d) => host.includes(d));
     }
 
+    function isAwinStyleClickId(value) {
+      const v = String(value || "").trim();
+      if (!v) return false;
+
+      // 常见 Awin click_id 格式特征，例如 1011lCm5kqB7
+      if (/^\d{3,}l[A-Za-z0-9]+$/.test(v)) return true;
+
+      return false;
+    }
+
     function inferPublisherFromText(text) {
       const t = normalizeText(text);
       if (!t) return null;
 
       const rules = [
-        { match: /mattressadvisor/, publisher: "Mattress Advisor", subSite: "Mattress Advisor", type: "publisher", confidence: "high" },
-        { match: /mattressnerd/, publisher: "Mattress Nerd", subSite: "Mattress Nerd", type: "publisher", confidence: "high" },
-        { match: /sleepfoundation/, publisher: "Sleep Foundation", subSite: "Sleep Foundation", type: "publisher", confidence: "high" },
+        { match: /mattressnrd|mattressnerd/, publisher: "Mattress Nerd", subSite: "Mattress Nerd", type: "publisher", confidence: "high" },
+        { match: /mattressadvisor|mattress advisor/, publisher: "Mattress Advisor", subSite: "Mattress Advisor", type: "publisher", confidence: "high" },
+        { match: /sleepfoundation|sleep foundation/, publisher: "Sleep Foundation", subSite: "Sleep Foundation", type: "publisher", confidence: "high" },
         { match: /tomsguide/, publisher: "Tom's Guide", subSite: "Tom's Guide", type: "publisher", confidence: "high" },
         { match: /wirecutter/, publisher: "Wirecutter", subSite: "Wirecutter", type: "publisher", confidence: "high" },
         { match: /forbes/, publisher: "Forbes", subSite: "Forbes", type: "publisher", confidence: "medium" },
         { match: /slickdeals/, publisher: "Slickdeals", subSite: "Slickdeals", type: "deal site", confidence: "high" },
         { match: /cnnunderscored|cnn-underscored/, publisher: "CNN Underscored", subSite: "CNN Underscored", type: "publisher", confidence: "high" },
-        { match: /nypost/, publisher: "New York Post", subSite: "New York Post", type: "publisher", confidence: "medium" },
         { match: /businessinsider|insider/, publisher: "Business Insider", subSite: "Business Insider", type: "publisher", confidence: "medium" },
         { match: /futurepublishing|future/, publisher: "Future", subSite: "Future Publishing", type: "publisher", confidence: "medium" },
         { match: /cnet/, publisher: "CNET", subSite: "CNET", type: "publisher", confidence: "high" },
@@ -231,8 +241,7 @@ module.exports = async (req, res) => {
         { match: /techradar/, publisher: "TechRadar", subSite: "TechRadar", type: "publisher", confidence: "high" },
         { match: /newsweek/, publisher: "Newsweek", subSite: "Newsweek", type: "publisher", confidence: "medium" },
         { match: /usatoday/, publisher: "USA Today", subSite: "USA Today", type: "publisher", confidence: "medium" },
-        { match: /reviewed/, publisher: "Reviewed", subSite: "Reviewed", type: "publisher", confidence: "medium" },
-        { match: /buywithme/, publisher: "Buy With Me", subSite: "Buy With Me", type: "publisher", confidence: "medium" }
+        { match: /reviewed/, publisher: "Reviewed", subSite: "Reviewed", type: "publisher", confidence: "medium" }
       ];
 
       for (const rule of rules) {
@@ -268,7 +277,24 @@ module.exports = async (req, res) => {
       addDecision(`Publisher inferred from raw ${label} value.`);
     }
 
-    // Capture broad signal set
+    function isKnownAffiliatePublisher() {
+      return [
+        "Mattress Nerd",
+        "Mattress Advisor",
+        "Sleep Foundation",
+        "Tom's Guide",
+        "Wirecutter",
+        "Slickdeals",
+        "CNN Underscored",
+        "Business Insider",
+        "Future",
+        "CNET",
+        "PC Gamer",
+        "TechRadar",
+        "Reviewed"
+      ].includes(publisher);
+    }
+
     [
       "tag",
       "maas",
@@ -331,10 +357,10 @@ module.exports = async (req, res) => {
       "mkwid",
       "tw_source",
       "tw_adid",
-      "tw_campaign"
+      "tw_campaign",
+      "coupon"
     ].forEach(captureParam);
 
-    // Basic domain hints
     if (isAmazonHost()) {
       addTrackingLayer("amazon");
       addCandidate("Amazon", 25, "medium", ["amazon domain"]);
@@ -346,7 +372,6 @@ module.exports = async (req, res) => {
       addDecision("Affiliate-network-like redirect or tracking host detected.");
     }
 
-    // Publisher inference sources
     applyPublisherInference(getParam("tag"), "tag");
     applyPublisherInference(safeDecode(getParam("utm_source")), "utm_source");
     applyPublisherInference(safeDecode(getParam("utm_campaign")), "utm_campaign");
@@ -601,7 +626,7 @@ module.exports = async (req, res) => {
       addDecision("Impact signals found in URL parameters.");
     }
 
-    // AWIN
+    // AWIN v2.0.1 强化版
     let awinScore = 0;
     const awinSignals = [];
 
@@ -609,29 +634,55 @@ module.exports = async (req, res) => {
       awinScore += 55;
       awinSignals.push("awc");
     }
+
     if (hasParam("click_id")) {
       awinScore += 20;
       awinSignals.push("click_id");
+
+      if (isAwinStyleClickId(getParam("click_id"))) {
+        awinScore += 14;
+        awinSignals.push("awin-style click_id pattern");
+      }
     }
+
     if (normalizeText(getParam("source")) === "aw") {
       awinScore += 20;
       awinSignals.push("source=aw");
     }
+
     if (hasParam("sv1")) {
       awinScore += 10;
       awinSignals.push("sv1");
     }
+
     if (hasParam("sv_campaign_id")) {
       awinScore += 22;
       awinSignals.push("sv_campaign_id");
     }
+
     if (isAffiliateLikeMedium()) {
       awinScore += 8;
       awinSignals.push("utm_medium=affiliate/aff");
     }
+
     if (valueContains("utm_source", ["awin"])) {
       awinScore += 20;
       awinSignals.push("utm_source=awin");
+    }
+
+    if (publisher === "Mattress Nerd") {
+      awinScore += 8;
+      awinSignals.push("publisher=Mattress Nerd");
+    }
+
+    if (publisher === "Mattress Advisor") {
+      awinScore += 6;
+      awinSignals.push("publisher=Mattress Advisor");
+    }
+
+    if (isKnownAffiliatePublisher() && hasParam("click_id")) {
+      awinScore += 6;
+      awinSignals.push("publisher + click_id affiliate context");
     }
 
     if (awinScore >= 35) {
@@ -895,7 +946,7 @@ module.exports = async (req, res) => {
       addDecision("FlexOffers signals found in URL.");
     }
 
-    // PARTNERIZE / PEPPERJAM-LIKE
+    // PARTNERIZE
     let partnerizeScore = 0;
     const partnerizeSignals = [];
 
@@ -1017,7 +1068,7 @@ module.exports = async (req, res) => {
       addDecision("Generic paid-media signals found in URL.");
     }
 
-    // GENERIC AFFILIATE HINTS
+    // GENERIC AFFILIATE
     let genericAffiliateScore = 0;
     const genericAffiliateSignals = [];
 
@@ -1053,7 +1104,6 @@ module.exports = async (req, res) => {
       }
     }
 
-    // Publisher fallback
     if (publisher === "-") {
       applyPublisherInference(safeDecode(getParam("utm_source")), "utm_source");
       applyPublisherInference(safeDecode(getParam("utm_content")), "utm_content");
@@ -1069,11 +1119,11 @@ module.exports = async (req, res) => {
       setFallbackPublisherFromRaw(getParam("utm_source"), "utm_source", "low");
     }
 
-    // Conflict logic
     const hasAmazonAssoc = platformCandidates.some((x) => x.name === "Amazon Associates" && x.score >= 40);
     const hasAmazonAttr = platformCandidates.some((x) => x.name === "Amazon Attribution" && x.score >= 40);
     const hasAmazonCreator = platformCandidates.some((x) => x.name === "Amazon Creator Connections" && x.score >= 40);
     const hasPaidMedia = platformCandidates.some((x) => x.name === "Paid Media" && x.score >= 35);
+
     const affiliatePlatforms = [
       "Amazon Associates",
       "Amazon Creator Connections",
@@ -1090,6 +1140,7 @@ module.exports = async (req, res) => {
       "Admitad",
       "Generic Affiliate"
     ];
+
     const hasAffiliatePrimary = affiliatePlatforms.includes(platform);
 
     if (hasAmazonAssoc && hasAmazonAttr) {
@@ -1113,7 +1164,6 @@ module.exports = async (req, res) => {
       addDecision("Affiliate and paid-media signals coexist.");
     }
 
-    // Final fallback from strongest candidate
     if (platform === "-" && platformCandidates.length > 0) {
       const top = [...platformCandidates].sort((a, b) => b.score - a.score)[0];
       platform = top.name;
