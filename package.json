@@ -1,1 +1,9 @@
-
+{
+  "name": "brandshuo-attribution-checker",
+  "version": "2.1.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "node api/analyze.js"
+  }
+}
