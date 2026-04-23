@@ -1,50 +1,88 @@
-const { analyzeLink } = require("../lib/analyze");
+let detectPublisherFromGenericSignals = null;
+let detectAmazonPublisherFromUrl = null;
 
-module.exports = async (req, res) => {
+try {
+  ({ detectPublisherFromGenericSignals } = require("./detect-publisher"));
+} catch (e) {
+  console.log("detect-publisher load failed:", e.message);
+}
+
+try {
+  ({ detectAmazonPublisherFromUrl } = require("./amazon-publisher-rules"));
+} catch (e) {
+  console.log("amazon rules load failed:", e.message);
+}
+
+function analyzeLink(url) {
   try {
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-    if (req.method === "OPTIONS") {
-      return res.status(200).end();
-    }
-
-    if (req.method === "GET") {
-      return res.status(200).json({
-        success: true,
-        error: false,
-        message: "Analyze API is running",
-        version: "v3-safe"
-      });
-    }
-
-    if (req.method !== "POST") {
-      return res.status(405).json({
-        success: false,
+    if (!url || typeof url !== "string") {
+      return {
+        version: "v3-safe",
         error: true,
-        message: "Method not allowed"
-      });
+        message: "Invalid URL"
+      };
     }
 
-    const body = req.body || {};
-    const url = typeof body.url === "string" ? body.url.trim() : "";
+    let urlObj;
+    try {
+      urlObj = new URL(url);
+    } catch (e) {
+      return {
+        version: "v3-safe",
+        error: true,
+        message: "Invalid URL format"
+      };
+    }
 
-    const result = analyzeLink(url);
+    const params = Object.fromEntries(urlObj.searchParams.entries());
 
-    return res.status(200).json({
-      success: true,
-      error: false,
-      message: "Analysis completed",
-      version: result.version || "v3-safe",
-      data: result
-    });
+    let network = "Unknown";
+    let publisher_intelligence = {
+      publisher: "Unknown",
+      publisher_group: "",
+      type: "Unknown",
+      media_group: "Unknown",
+      subtype: "Unknown",
+      confidence: "Low",
+      matched_by: "none"
+    };
+
+    try {
+      if (detectPublisherFromGenericSignals) {
+        const result = detectPublisherFromGenericSignals(params, urlObj.hostname);
+        if (result) {
+          publisher_intelligence = result;
+        }
+      }
+    } catch (e) {
+      console.log("generic detect error:", e.message);
+    }
+
+    try {
+      if (urlObj.hostname.includes("amazon.") && detectAmazonPublisherFromUrl) {
+        const amazonResult = detectAmazonPublisherFromUrl(url);
+        if (amazonResult && typeof amazonResult === "object") {
+          network = "Amazon";
+        }
+      }
+    } catch (e) {
+      console.log("amazon detect error:", e.message);
+    }
+
+    return {
+      version: "v3-safe",
+      analyzed_url: urlObj.toString(),
+      hostname: urlObj.hostname,
+      network,
+      publisher_intelligence
+    };
   } catch (err) {
-    return res.status(500).json({
-      success: false,
+    return {
+      version: "v3-safe",
       error: true,
-      message: err.message || "Internal server error"
-    });
+      message: err.message
+    };
   }
-};
+}
+
+module.exports = { analyzeLink };
