@@ -1,6 +1,9 @@
+const { analyzeLink } = require("../lib/analyze");
+
 module.exports = async (req, res) => {
   return res.status(200).json({
-    ok: true,
-    message: "API alive"
+    success: true,
+    message: "analyze loaded",
+    type: typeof analyzeLink
   });
 };
