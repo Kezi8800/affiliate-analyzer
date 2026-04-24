@@ -3,8 +3,13 @@ const { detectPublisherByUrl } = require("../lib/publisher-database");
 function safeUrl(input) {
   try {
     if (!input) return null;
+
     let url = String(input).trim();
-    if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+
+    if (!/^https?:\/\//i.test(url)) {
+      url = "https://" + url;
+    }
+
     return new URL(url);
   } catch {
     return null;
@@ -13,41 +18,108 @@ function safeUrl(input) {
 
 function getParams(u) {
   const params = {};
+
   if (!u) return params;
+
   for (const [k, v] of u.searchParams.entries()) {
     params[k.toLowerCase()] = v;
   }
+
   return params;
 }
 
 function hasAny(params, keys) {
-  return keys.some((k) => params[k.toLowerCase()]);
+  return keys.some((k) => {
+    const key = k.toLowerCase();
+    return params[key] !== undefined && params[key] !== null && params[key] !== "";
+  });
 }
 
 function detectPlatform(host) {
+  if (!host) return "Unknown Merchant";
+
   if (host.includes("amazon.")) return "Amazon";
   if (host.includes("walmart.")) return "Walmart";
   if (host.includes("ebay.")) return "eBay";
   if (host.includes("target.")) return "Target";
   if (host.includes("bestbuy.")) return "Best Buy";
+  if (host.includes("homedepot.")) return "The Home Depot";
+  if (host.includes("lowes.")) return "Lowe's";
+  if (host.includes("wayfair.")) return "Wayfair";
+
   return "Unknown Merchant";
 }
 
 function detectNetwork(params, rawUrl) {
-  const url = rawUrl.toLowerCase();
+  const url = String(rawUrl || "").toLowerCase();
 
-  if (hasAny(params, ["irclickid"]) || url.includes("impactradius")) return "Impact";
-  if (hasAny(params, ["cjevent"])) return "CJ Affiliate";
-  if (hasAny(params, ["awc"])) return "Awin";
-  if (hasAny(params, ["ranmid", "ranSiteID", "ranEAID"])) return "Rakuten";
-  if (hasAny(params, ["clickref", "click_ref"])) return "Partnerize";
-  if (hasAny(params, ["sscid"])) return "ShareASale";
-  if (hasAny(params, ["afftrack", "affid"])) return "Affiliate Tracking";
-  if (hasAny(params, ["subid", "subid1", "subid2", "subid3"])) return "Sub-affiliate / Publisher Tracking";
-  if (hasAny(params, ["gclid", "gbraid", "wbraid"])) return "Google Ads";
-  if (hasAny(params, ["fbclid"])) return "Meta Ads";
-  if (hasAny(params, ["ttclid"])) return "TikTok Ads";
-  if (hasAny(params, ["msclkid"])) return "Microsoft Ads";
+  if (hasAny(params, ["irclickid"]) || url.includes("impactradius")) {
+    return "Impact";
+  }
+
+  if (hasAny(params, ["cjevent"])) {
+    return "CJ Affiliate";
+  }
+
+  if (hasAny(params, ["awc"])) {
+    return "Awin";
+  }
+
+  if (hasAny(params, ["ranmid", "ransiteid", "raneaid"])) {
+    return "Rakuten";
+  }
+
+  if (hasAny(params, ["clickref", "click_ref"])) {
+    return "Partnerize";
+  }
+
+  if (hasAny(params, ["sscid"])) {
+    return "ShareASale";
+  }
+
+  if (hasAny(params, ["tduid", "trafficsourceid"])) {
+    return "TradeDoubler";
+  }
+
+  if (hasAny(params, ["wgcampaignid", "wgprogramid"])) {
+    return "Webgains";
+  }
+
+  if (hasAny(params, ["faid", "fobs"])) {
+    return "FlexOffers";
+  }
+
+  if (hasAny(params, ["pjid", "pjmid"])) {
+    return "Partnerize / Pepperjam";
+  }
+
+  if (hasAny(params, ["admitad_uid"])) {
+    return "Admitad";
+  }
+
+  if (hasAny(params, ["afftrack", "affid", "affiliate_id"])) {
+    return "Affiliate Tracking";
+  }
+
+  if (hasAny(params, ["subid", "subid1", "subid2", "subid3", "sharedid", "ascsubtag"])) {
+    return "Sub-affiliate / Publisher Tracking";
+  }
+
+  if (hasAny(params, ["gclid", "gbraid", "wbraid", "gad_campaignid"])) {
+    return "Google Ads";
+  }
+
+  if (hasAny(params, ["fbclid"])) {
+    return "Meta Ads";
+  }
+
+  if (hasAny(params, ["ttclid"])) {
+    return "TikTok Ads";
+  }
+
+  if (hasAny(params, ["msclkid"])) {
+    return "Microsoft Ads";
+  }
 
   return "Unknown";
 }
@@ -56,61 +128,91 @@ function detectAmazonLayer(params, host) {
   if (!host.includes("amazon.")) return null;
 
   const hasTag = !!params.tag;
+
+  const linkCode = String(params.linkcode || "").toLowerCase();
+  const refValue = String(params.ref_ || "").toLowerCase();
+
+  /*
+    Amazon Attribution:
+    只有这些明确 Attribution 参数才判定。
+    注意：不能因为普通 ref_ 就判定 Attribution。
+  */
   const hasAttribution =
     hasAny(params, [
       "maas",
       "aa_campaignid",
       "aa_adgroupid",
-      "aa_creativeid",
-      "ref_",
-    ]) || String(params.ref_ || "").includes("aa_maas");
+      "aa_creativeid"
+    ]) ||
+    refValue.includes("aa_maas");
 
-  const hasACC =
+  /*
+    Amazon Creator Connections / Creator-style signals:
+    常见参数：
+    - campaignId / campaignid
+    - linkId / linkid
+    - linkCode=tr1
+    - linkCode=ur2
+    - creative + camp 组合也常见于 Amazon affiliate 链接
+  */
+  const hasCreatorSignal =
     hasAny(params, ["campaignid", "linkid"]) ||
-    params.linkcode === "tr1" ||
-    params.linkcode === "ur2";
+    linkCode === "tr1" ||
+    linkCode === "ur2";
+
+  const hasClassicAssociateSignal =
+    hasTag ||
+    hasAny(params, ["camp", "creative"]);
 
   if (hasAttribution) {
     return {
       layer: "Amazon Attribution",
       ownership: "Amazon Attribution / Ad Measurement",
-      priority: 1,
+      priority: 1
     };
   }
 
-  if (hasACC && hasTag) {
+  if (hasCreatorSignal && hasTag) {
     return {
       layer: "Amazon Creator Connections + Associates",
-      ownership: "Creator / Publisher likely involved",
-      priority: 2,
+      ownership: params.tag || "Creator / Publisher likely involved",
+      priority: 2
     };
   }
 
-  if (hasACC) {
+  if (hasCreatorSignal) {
     return {
       layer: "Amazon Creator Connections Signal",
       ownership: "Creator Connections signal detected",
-      priority: 3,
+      priority: 3
     };
   }
 
-  if (hasTag) {
+  if (hasClassicAssociateSignal && hasTag) {
     return {
       layer: "Amazon Associates",
       ownership: params.tag,
-      priority: 4,
+      priority: 4
+    };
+  }
+
+  if (hasClassicAssociateSignal) {
+    return {
+      layer: "Amazon Affiliate Link Signal",
+      ownership: "Affiliate-style parameters detected",
+      priority: 5
     };
   }
 
   return {
     layer: "Amazon Organic / Retail Link",
     ownership: "No affiliate tag detected",
-    priority: 9,
+    priority: 9
   };
 }
 
 function detectCommercialIntent(params, network, publisherInfo) {
-  const category = publisherInfo.category;
+  const category = publisherInfo?.category || "unknown";
 
   if (category === "coupon_site") return "Coupon / Checkout Intent";
   if (category === "cashback") return "Cashback / Reward Intent";
@@ -118,15 +220,17 @@ function detectCommercialIntent(params, network, publisherInfo) {
   if (category === "review_site") return "Research / Review Intent";
   if (category === "commerce_media") return "Editorial Commerce Intent";
   if (category === "creator") return "Creator Recommendation Intent";
+  if (category === "sub_affiliate") return "Syndicated Click Intent";
+  if (category === "b2b_review") return "Software Evaluation Intent";
 
-  if (network.includes("Ads")) return "Paid Traffic Intent";
-  if (network !== "Unknown") return "Affiliate / Partner Intent";
+  if (network && network.includes("Ads")) return "Paid Traffic Intent";
+  if (network && network !== "Unknown") return "Affiliate / Partner Intent";
 
   return "Unknown Intent";
 }
 
 function detectChannelRole(params, network, publisherInfo) {
-  const category = publisherInfo.category;
+  const category = publisherInfo?.category || "unknown";
 
   if (category === "coupon_site") return "Last-click / Checkout Interceptor";
   if (category === "cashback") return "Loyalty / Cashback Layer";
@@ -135,32 +239,103 @@ function detectChannelRole(params, network, publisherInfo) {
   if (category === "commerce_media") return "Editorial Discovery / Consideration";
   if (category === "creator") return "Demand Creation / Creator Influence";
   if (category === "sub_affiliate") return "Tracking / Syndication Layer";
+  if (category === "b2b_review") return "Lead Assist / Evaluation Layer";
 
-  if (network.includes("Ads")) return "Paid Acquisition";
-  if (network !== "Unknown") return "Affiliate Network Layer";
+  if (network && network.includes("Ads")) return "Paid Acquisition";
+  if (network && network !== "Unknown") return "Affiliate Network Layer";
 
   return "Unknown Role";
 }
 
 function detectRisk(publisherInfo, network) {
-  if (publisherInfo.incrementalityRisk) return publisherInfo.incrementalityRisk;
-  if (network.includes("Ads")) return "Medium";
-  if (network !== "Unknown") return "Medium";
+  if (publisherInfo?.incrementalityRisk) {
+    return publisherInfo.incrementalityRisk;
+  }
+
+  if (network && network.includes("Ads")) return "Medium";
+  if (network && network !== "Unknown") return "Medium";
+
   return "Unknown";
 }
 
 function makePathLabel(platform, network, amazonLayer, publisherInfo) {
   const parts = [];
 
-  if (platform && platform !== "Unknown Merchant") parts.push(platform);
-  if (network && network !== "Unknown") parts.push(network);
-  if (amazonLayer?.layer) parts.push(amazonLayer.layer);
-  if (publisherInfo?.publisher && publisherInfo.publisher !== "Unknown Publisher") {
+  if (platform && platform !== "Unknown Merchant") {
+    parts.push(platform);
+  }
+
+  if (network && network !== "Unknown") {
+    parts.push(network);
+  }
+
+  if (amazonLayer?.layer) {
+    parts.push(amazonLayer.layer);
+  }
+
+  if (
+    publisherInfo?.publisher &&
+    publisherInfo.publisher !== "Unknown Publisher"
+  ) {
     parts.push(publisherInfo.publisher);
   }
 
   if (!parts.length) return "Unknown Link Path";
+
   return parts.join(" → ");
+}
+
+function detectSignals(params, network, publisherInfo) {
+  const category = publisherInfo?.category || "unknown";
+
+  return {
+    hasAffiliateTag:
+      !!params.tag ||
+      network !== "Unknown" ||
+      hasAny(params, [
+        "irclickid",
+        "cjevent",
+        "awc",
+        "clickref",
+        "sscid",
+        "ranmid",
+        "affid",
+        "afftrack"
+      ]),
+
+    hasAmazonTag: !!params.tag,
+
+    hasPaidClickId: hasAny(params, [
+      "gclid",
+      "gbraid",
+      "wbraid",
+      "fbclid",
+      "ttclid",
+      "msclkid"
+    ]),
+
+    hasSubId: hasAny(params, [
+      "subid",
+      "subid1",
+      "subid2",
+      "subid3",
+      "ascsubtag",
+      "sharedid",
+      "sid"
+    ]),
+
+    hasCouponOrDealPublisher: [
+      "coupon_site",
+      "cashback",
+      "deal_site"
+    ].includes(category),
+
+    hasEditorialPublisher: [
+      "review_site",
+      "commerce_media",
+      "b2b_review"
+    ].includes(category)
+  };
 }
 
 function analyzeLink(inputUrl) {
@@ -169,9 +344,9 @@ function analyzeLink(inputUrl) {
   if (!parsed) {
     return {
       ok: false,
-      version: "BrandShuo Analyze v2.5 Publisher DB",
+      version: "BrandShuo Analyze v2.6 Publisher DB",
       error: "Invalid URL",
-      input: inputUrl,
+      input: inputUrl
     };
   }
 
@@ -188,19 +363,11 @@ function analyzeLink(inputUrl) {
   const channelRole = detectChannelRole(params, network, publisherInfo);
   const incrementalityRisk = detectRisk(publisherInfo, network);
   const pathLabel = makePathLabel(platform, network, amazonLayer, publisherInfo);
-
-  const signals = {
-    hasAffiliateTag: !!params.tag || network !== "Unknown",
-    hasAmazonTag: !!params.tag,
-    hasPaidClickId: hasAny(params, ["gclid", "gbraid", "wbraid", "fbclid", "ttclid", "msclkid"]),
-    hasSubId: hasAny(params, ["subid", "subid1", "subid2", "subid3", "ascsubtag", "sharedid"]),
-    hasCouponOrDealPublisher: ["coupon_site", "cashback", "deal_site"].includes(publisherInfo.category),
-    hasEditorialPublisher: ["review_site", "commerce_media"].includes(publisherInfo.category),
-  };
+  const signals = detectSignals(params, network, publisherInfo);
 
   return {
     ok: true,
-    version: "BrandShuo Analyze v2.5 Publisher DB",
+    version: "BrandShuo Analyze v2.6 Publisher DB",
 
     input: rawUrl,
     normalizedUrl: parsed.href,
@@ -208,6 +375,7 @@ function analyzeLink(inputUrl) {
     platform,
 
     network,
+
     amazon: amazonLayer,
 
     publisher: {
@@ -218,7 +386,7 @@ function analyzeLink(inputUrl) {
       category: publisherInfo.category,
       region: publisherInfo.region,
       confidence: publisherInfo.confidence,
-      matchType: publisherInfo.matchType,
+      matchType: publisherInfo.matchType
     },
 
     intelligence: {
@@ -227,12 +395,12 @@ function analyzeLink(inputUrl) {
       commercialIntent,
       channelRole,
       qualityScore: publisherInfo.quality,
-      incrementalityRisk,
+      incrementalityRisk
     },
 
     signals,
 
-    params,
+    params
   };
 }
 
@@ -252,12 +420,13 @@ module.exports = async function handler(req, res) {
         : req.query?.url;
 
     const result = analyzeLink(url);
+
     return res.status(200).json(result);
   } catch (err) {
     return res.status(500).json({
       ok: false,
-      version: "BrandShuo Analyze v2.5 Publisher DB",
-      error: err.message || "Server error",
+      version: "BrandShuo Analyze v2.6 Publisher DB",
+      error: err.message || "Server error"
     });
   }
 };
