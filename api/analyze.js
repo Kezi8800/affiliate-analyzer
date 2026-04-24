@@ -1,4 +1,5 @@
 const { detectPublisherByUrl } = require("../lib/publisher-database");
+const { detectPublisherByAmazonTag } = require("../lib/amazon-tag-publisher-map");
 
 function safeUrl(input) {
   try {
