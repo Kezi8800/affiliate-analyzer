@@ -39,6 +39,7 @@ function hasAny(params, keys) {
 function detectPlatform(host) {
   if (!host) return "Unknown Merchant";
 
+  if (host.includes("dell.")) return "Dell";
   if (host.includes("amazon.")) return "Amazon";
   if (host.includes("walmart.")) return "Walmart";
   if (host.includes("ebay.")) return "eBay";
@@ -59,7 +60,10 @@ function detectNetwork(params, rawUrl, host) {
     return "Impact";
   }
 
-  if (hasAny(params, ["cjevent"])) {
+  if (
+    hasAny(params, ["cjevent", "cjdata"]) ||
+    String(params.dgc || "").toLowerCase() === "cj"
+  ) {
     return "CJ Affiliate";
   }
 
@@ -99,33 +103,17 @@ function detectNetwork(params, rawUrl, host) {
     return "Admitad";
   }
 
-  if (hasAny(params, ["gclid", "gbraid", "wbraid", "gad_campaignid"])) {
-    return "Google Ads";
-  }
-
-  if (hasAny(params, ["fbclid"])) {
-    return "Meta Ads";
-  }
-
-  if (hasAny(params, ["ttclid"])) {
-    return "TikTok Ads";
-  }
-
-  if (hasAny(params, ["msclkid"])) {
-    return "Microsoft Ads";
-  }
-
   /*
-    Amazon special rule:
-    ascsubtag / subId / sharedId are publisher tracking IDs on Amazon links.
-    They should remain as signal flags, not override the main network.
+    Paid click ids are traffic layers, not affiliate networks.
+    Do not return Google Ads / Meta Ads here.
   */
+
   if (isAmazon) {
     if (params.tag) return "Amazon Associates";
     return "Amazon";
   }
 
-  if (hasAny(params, ["afftrack", "affid", "affiliate_id"])) {
+  if (hasAny(params, ["afftrack", "affid", "affiliate_id", "publisherid"])) {
     return "Affiliate Tracking";
   }
 
@@ -134,6 +122,110 @@ function detectNetwork(params, rawUrl, host) {
   }
 
   return "Unknown";
+}
+
+function detectPaidLayer(params) {
+  const signals = [];
+
+  if (params.gclid) signals.push("Google Ads");
+  if (params.gbraid || params.wbraid) signals.push("Google Ads iOS");
+  if (params.gad_campaignid || params.gad_source) signals.push("Google Ads");
+  if (params.dclid) signals.push("DV360 / Display Ads");
+  if (params.fbclid) signals.push("Meta Ads");
+  if (params.ttclid) signals.push("TikTok Ads");
+  if (params.msclkid) signals.push("Microsoft Ads");
+
+  const uniqueSignals = [...new Set(signals)];
+
+  return {
+    hasPaidLayer: uniqueSignals.length > 0,
+    signals: uniqueSignals,
+    trafficType: uniqueSignals.length > 0 ? "Paid Media + Affiliate" : null
+  };
+}
+
+function detectPublisherFromParams(params, rawUrl) {
+  const aff = decodeURIComponent(params.aff || "").toLowerCase();
+  const publisher = decodeURIComponent(params.publisher || "").toLowerCase();
+  const affUserId = decodeURIComponent(params.aff_user_id || "").toLowerCase();
+  const ven1 = decodeURIComponent(params.ven1 || "").toLowerCase();
+  const raw = decodeURIComponent(String(rawUrl || "")).toLowerCase();
+
+  const combined = `${aff} ${publisher} ${affUserId} ${ven1} ${raw}`;
+
+  if (
+    combined.includes("future publishing") ||
+    combined.includes("tomsguide") ||
+    combined.includes("tom's guide")
+  ) {
+    return {
+      publisher: "Tom's Guide",
+      domain: "tomsguide.com",
+      group: "Future Publishing",
+      groupKey: "future_publishing",
+      category: "review_site",
+      region: "US",
+      confidence: "high",
+      matchType: "param_match",
+      source: "aff_param",
+      trafficType: "Content / Review",
+      quality: 75,
+      incrementalityRisk: "Medium"
+    };
+  }
+
+  if (combined.includes("cnet")) {
+    return {
+      publisher: "CNET",
+      domain: "cnet.com",
+      group: "Red Ventures",
+      groupKey: "red_ventures",
+      category: "review_site",
+      region: "US",
+      confidence: "high",
+      matchType: "param_match",
+      source: "aff_param",
+      trafficType: "Content / Review",
+      quality: 75,
+      incrementalityRisk: "Medium"
+    };
+  }
+
+  if (combined.includes("slickdeals")) {
+    return {
+      publisher: "Slickdeals",
+      domain: "slickdeals.net",
+      group: "Slickdeals",
+      groupKey: "slickdeals",
+      category: "deal_site",
+      region: "US",
+      confidence: "high",
+      matchType: "param_match",
+      source: "aff_param",
+      trafficType: "Deal / Coupon",
+      quality: 60,
+      incrementalityRisk: "High"
+    };
+  }
+
+  return null;
+}
+
+function getFallbackPublisherInfo() {
+  return {
+    publisher: "Unknown Publisher",
+    domain: "",
+    group: "Unknown / Needs Verification",
+    groupKey: "unknown",
+    category: "unknown",
+    region: "unknown",
+    confidence: "low",
+    matchType: "none",
+    source: "fallback",
+    trafficType: "Unknown",
+    quality: 40,
+    incrementalityRisk: "Unknown"
+  };
 }
 
 function detectAmazonLayer(params, host) {
@@ -209,7 +301,7 @@ function detectAmazonLayer(params, host) {
   };
 }
 
-function detectCommercialIntent(params, network, publisherInfo) {
+function detectCommercialIntent(params, network, publisherInfo, paidLayer) {
   const category = publisherInfo?.category || "unknown";
 
   if (category === "coupon_site") return "Coupon / Checkout Intent";
@@ -224,13 +316,18 @@ function detectCommercialIntent(params, network, publisherInfo) {
   if (network === "Amazon Associates") return "Amazon Affiliate Intent";
   if (network === "Amazon") return "Amazon Retail Intent";
 
-  if (network && network.includes("Ads")) return "Paid Traffic Intent";
+  if (paidLayer?.hasPaidLayer && network !== "Unknown") {
+    return "Paid + Affiliate Intent";
+  }
+
   if (network && network !== "Unknown") return "Affiliate / Partner Intent";
+
+  if (paidLayer?.hasPaidLayer) return "Paid Traffic Intent";
 
   return "Unknown Intent";
 }
 
-function detectChannelRole(params, network, publisherInfo) {
+function detectChannelRole(params, network, publisherInfo, paidLayer) {
   const category = publisherInfo?.category || "unknown";
 
   if (category === "coupon_site") return "Last-click / Checkout Interceptor";
@@ -245,13 +342,22 @@ function detectChannelRole(params, network, publisherInfo) {
   if (network === "Amazon Associates") return "Affiliate / Publisher Attribution";
   if (network === "Amazon") return "Retail / Marketplace Destination";
 
-  if (network && network.includes("Ads")) return "Paid Acquisition";
+  if (paidLayer?.hasPaidLayer && network !== "Unknown") {
+    return "Paid Acquisition + Affiliate Network Layer";
+  }
+
   if (network && network !== "Unknown") return "Affiliate Network Layer";
+
+  if (paidLayer?.hasPaidLayer) return "Paid Acquisition";
 
   return "Unknown Role";
 }
 
-function detectRisk(publisherInfo, network) {
+function detectRisk(publisherInfo, network, paidLayer) {
+  if (paidLayer?.hasPaidLayer && network !== "Unknown") {
+    return "High";
+  }
+
   if (publisherInfo?.incrementalityRisk) {
     return publisherInfo.incrementalityRisk;
   }
@@ -259,17 +365,38 @@ function detectRisk(publisherInfo, network) {
   if (network === "Amazon Associates") return "Medium";
   if (network === "Amazon") return "Low";
 
-  if (network && network.includes("Ads")) return "Medium";
   if (network && network !== "Unknown") return "Medium";
+
+  if (paidLayer?.hasPaidLayer) return "Medium";
 
   return "Unknown";
 }
 
-function makePathLabel(platform, network, amazonLayer, publisherInfo) {
+function detectConfidence(platform, network, publisherInfo, paidLayer) {
+  let score = 0;
+
+  if (platform && platform !== "Unknown Merchant") score += 30;
+  if (network && network !== "Unknown") score += 30;
+  if (publisherInfo?.publisher && publisherInfo.publisher !== "Unknown Publisher") score += 30;
+  if (paidLayer?.hasPaidLayer) score += 10;
+
+  if (score >= 80) return "high";
+  if (score >= 50) return "medium";
+  return "low";
+}
+
+function makePathLabel(platform, network, amazonLayer, publisherInfo, paidLayer) {
   const parts = [];
 
-  if (platform && platform !== "Unknown Merchant") {
-    parts.push(platform);
+  if (paidLayer?.hasPaidLayer) {
+    parts.push("Paid Media");
+  }
+
+  if (
+    publisherInfo?.publisher &&
+    publisherInfo.publisher !== "Unknown Publisher"
+  ) {
+    parts.push(publisherInfo.publisher);
   }
 
   if (network && network !== "Unknown") {
@@ -283,11 +410,8 @@ function makePathLabel(platform, network, amazonLayer, publisherInfo) {
     parts.push(amazonLayer.layer);
   }
 
-  if (
-    publisherInfo?.publisher &&
-    publisherInfo.publisher !== "Unknown Publisher"
-  ) {
-    parts.push(publisherInfo.publisher);
+  if (platform && platform !== "Unknown Merchant") {
+    parts.push(platform);
   }
 
   if (!parts.length) return "Unknown Link Path";
@@ -295,7 +419,7 @@ function makePathLabel(platform, network, amazonLayer, publisherInfo) {
   return parts.join(" → ");
 }
 
-function detectSignals(params, network, publisherInfo) {
+function detectSignals(params, network, publisherInfo, paidLayer) {
   const category = publisherInfo?.category || "unknown";
 
   return {
@@ -305,24 +429,19 @@ function detectSignals(params, network, publisherInfo) {
       hasAny(params, [
         "irclickid",
         "cjevent",
+        "cjdata",
         "awc",
         "clickref",
         "sscid",
         "ranmid",
         "affid",
-        "afftrack"
+        "afftrack",
+        "publisherid"
       ]),
 
     hasAmazonTag: !!params.tag,
 
-    hasPaidClickId: hasAny(params, [
-      "gclid",
-      "gbraid",
-      "wbraid",
-      "fbclid",
-      "ttclid",
-      "msclkid"
-    ]),
+    hasPaidClickId: paidLayer?.hasPaidLayer || false,
 
     hasSubId: hasAny(params, [
       "subid",
@@ -331,7 +450,8 @@ function detectSignals(params, network, publisherInfo) {
       "subid3",
       "ascsubtag",
       "sharedid",
-      "sid"
+      "sid",
+      "aff_user_id"
     ]),
 
     hasCouponOrDealPublisher: [
@@ -354,7 +474,7 @@ function analyzeLink(inputUrl) {
   if (!parsed) {
     return {
       ok: false,
-      version: "BrandShuo Analyze v2.8 Amazon Tag Publisher Map",
+      version: "BrandShuo Analyze v2.9 Param Publisher + Paid Layer",
       error: "Invalid URL",
       input: inputUrl
     };
@@ -366,26 +486,46 @@ function analyzeLink(inputUrl) {
 
   const platform = detectPlatform(host);
   const network = detectNetwork(params, rawUrl, host);
+  const paidLayer = detectPaidLayer(params);
   const amazonLayer = detectAmazonLayer(params, host);
 
   /*
     Publisher detection priority:
-    1. Amazon tag mapping, e.g. slickdeals09-20 → Slickdeals
-    2. URL/domain based publisher database
+    1. URL params, e.g. aff=Future Publishing / aff_user_id=tomsguide
+    2. Amazon tag mapping, e.g. slickdeals09-20 → Slickdeals
+    3. URL/domain based publisher database
+    4. fallback unknown object
   */
   const publisherInfo =
+    detectPublisherFromParams(params, rawUrl) ||
     detectPublisherByAmazonTag(params.tag) ||
-    detectPublisherByUrl(rawUrl);
+    detectPublisherByUrl(rawUrl) ||
+    getFallbackPublisherInfo();
 
-  const commercialIntent = detectCommercialIntent(params, network, publisherInfo);
-  const channelRole = detectChannelRole(params, network, publisherInfo);
-  const incrementalityRisk = detectRisk(publisherInfo, network);
-  const pathLabel = makePathLabel(platform, network, amazonLayer, publisherInfo);
-  const signals = detectSignals(params, network, publisherInfo);
+  const commercialIntent = detectCommercialIntent(params, network, publisherInfo, paidLayer);
+  const channelRole = detectChannelRole(params, network, publisherInfo, paidLayer);
+  const incrementalityRisk = detectRisk(publisherInfo, network, paidLayer);
+  const confidence = detectConfidence(platform, network, publisherInfo, paidLayer);
+  const pathLabel = makePathLabel(platform, network, amazonLayer, publisherInfo, paidLayer);
+  const signals = detectSignals(params, network, publisherInfo, paidLayer);
+
+  let finalTrafficType = publisherInfo.trafficType || "Unknown";
+
+  if (paidLayer.hasPaidLayer && network !== "Unknown") {
+    finalTrafficType = "Paid Media + Affiliate";
+  } else if (paidLayer.hasPaidLayer) {
+    finalTrafficType = "Paid Media";
+  }
+
+  let qualityScore = publisherInfo.quality || 40;
+
+  if (paidLayer.hasPaidLayer && network !== "Unknown") {
+    qualityScore = Math.max(55, qualityScore - 5);
+  }
 
   return {
     ok: true,
-    version: "BrandShuo Analyze v2.8 Amazon Tag Publisher Map",
+    version: "BrandShuo Analyze v2.9 Param Publisher + Paid Layer",
 
     input: rawUrl,
     normalizedUrl: parsed.href,
@@ -395,6 +535,8 @@ function analyzeLink(inputUrl) {
     network,
 
     amazon: amazonLayer,
+
+    paid: paidLayer,
 
     publisher: {
       name: publisherInfo.publisher,
@@ -410,11 +552,12 @@ function analyzeLink(inputUrl) {
 
     intelligence: {
       pathLabel,
-      trafficType: publisherInfo.trafficType,
+      trafficType: finalTrafficType,
       commercialIntent,
       channelRole,
-      qualityScore: publisherInfo.quality,
-      incrementalityRisk
+      qualityScore,
+      incrementalityRisk,
+      confidence
     },
 
     signals,
@@ -444,7 +587,7 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({
       ok: false,
-      version: "BrandShuo Analyze v2.8 Amazon Tag Publisher Map",
+      version: "BrandShuo Analyze v2.9 Param Publisher + Paid Layer",
       error: err.message || "Server error"
     });
   }
