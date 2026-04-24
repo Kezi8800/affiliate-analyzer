@@ -144,11 +144,6 @@ function detectAmazonLayer(params, host) {
   const linkCode = String(params.linkcode || "").toLowerCase();
   const refValue = String(params.ref_ || "").toLowerCase();
 
-  /*
-    Amazon Attribution:
-    Only explicit Amazon Attribution parameters should trigger this.
-    A normal ref_ parameter should NOT be treated as Attribution.
-  */
   const hasAttribution =
     hasAny(params, [
       "maas",
@@ -158,17 +153,6 @@ function detectAmazonLayer(params, host) {
     ]) ||
     refValue.includes("aa_maas");
 
-  /*
-    Amazon Creator Connections / creator-style signals:
-    - campaignId / campaignid
-    - linkId / linkid
-    - linkCode=tr1
-    - linkCode=ur2
-
-    Note:
-    creative + camp are common Amazon affiliate parameters,
-    but they alone should not force ACC.
-  */
   const hasCreatorSignal =
     hasAny(params, ["campaignid", "linkid"]) ||
     linkCode === "tr1" ||
@@ -288,10 +272,6 @@ function makePathLabel(platform, network, amazonLayer, publisherInfo) {
     parts.push(platform);
   }
 
-  /*
-    Avoid duplicate path like:
-    Amazon → Amazon Associates → Amazon Associates
-  */
   if (network && network !== "Unknown") {
     parts.push(network);
   }
@@ -374,7 +354,7 @@ function analyzeLink(inputUrl) {
   if (!parsed) {
     return {
       ok: false,
-      version: "BrandShuo Analyze v2.7 Publisher DB",
+      version: "BrandShuo Analyze v2.8 Amazon Tag Publisher Map",
       error: "Invalid URL",
       input: inputUrl
     };
@@ -387,7 +367,15 @@ function analyzeLink(inputUrl) {
   const platform = detectPlatform(host);
   const network = detectNetwork(params, rawUrl, host);
   const amazonLayer = detectAmazonLayer(params, host);
-  const publisherInfo = detectPublisherByUrl(rawUrl);
+
+  /*
+    Publisher detection priority:
+    1. Amazon tag mapping, e.g. slickdeals09-20 → Slickdeals
+    2. URL/domain based publisher database
+  */
+  const publisherInfo =
+    detectPublisherByAmazonTag(params.tag) ||
+    detectPublisherByUrl(rawUrl);
 
   const commercialIntent = detectCommercialIntent(params, network, publisherInfo);
   const channelRole = detectChannelRole(params, network, publisherInfo);
@@ -397,7 +385,7 @@ function analyzeLink(inputUrl) {
 
   return {
     ok: true,
-    version: "BrandShuo Analyze v2.7 Publisher DB",
+    version: "BrandShuo Analyze v2.8 Amazon Tag Publisher Map",
 
     input: rawUrl,
     normalizedUrl: parsed.href,
@@ -416,7 +404,8 @@ function analyzeLink(inputUrl) {
       category: publisherInfo.category,
       region: publisherInfo.region,
       confidence: publisherInfo.confidence,
-      matchType: publisherInfo.matchType
+      matchType: publisherInfo.matchType,
+      source: publisherInfo.source || "url_database"
     },
 
     intelligence: {
@@ -455,7 +444,7 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({
       ok: false,
-      version: "BrandShuo Analyze v2.7 Publisher DB",
+      version: "BrandShuo Analyze v2.8 Amazon Tag Publisher Map",
       error: err.message || "Server error"
     });
   }
