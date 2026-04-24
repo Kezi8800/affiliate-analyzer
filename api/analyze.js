@@ -39,6 +39,7 @@ function hasAny(params, keys) {
 function detectPlatform(host) {
   if (!host) return "Unknown Merchant";
 
+  if (host.includes("lg.com")) return "LG";
   if (host.includes("dell.")) return "Dell";
   if (host.includes("walmart.")) return "Walmart";
   if (host.includes("amazon.")) return "Amazon";
@@ -59,14 +60,8 @@ function detectNetwork(params, rawUrl, host) {
   const sourceid = String(params.sourceid || "").toLowerCase();
   const wmlspartner = String(params.wmlspartner || "").toLowerCase();
   const dgc = String(params.dgc || "").toLowerCase();
+  const utmSource = String(params.utm_source || "").toLowerCase();
 
-  /*
-    IMPORTANT:
-    Network detection must use strong network signals first.
-    Do not let subid / sharedid / aff_user_id override CJ / Impact / Awin.
-  */
-
-  // Impact / Impact Radius
   if (
     hasAny(params, ["irclickid"]) ||
     params.irgwc === "1" ||
@@ -77,10 +72,10 @@ function detectNetwork(params, rawUrl, host) {
     return "Impact";
   }
 
-  // CJ Affiliate
   if (
-    hasAny(params, ["cjevent", "cjdata"]) ||
-    dgc === "cj"
+    hasAny(params, ["cjevent", "cjdata", "cj_publishercid"]) ||
+    dgc === "cj" ||
+    utmSource.includes("cj-affiliate")
   ) {
     return "CJ Affiliate";
   }
@@ -95,17 +90,11 @@ function detectNetwork(params, rawUrl, host) {
   if (hasAny(params, ["pjid", "pjmid"])) return "Partnerize / Pepperjam";
   if (hasAny(params, ["admitad_uid"])) return "Admitad";
 
-  // Amazon special handling
   if (isAmazon) {
     if (params.tag) return "Amazon Associates";
     return "Amazon";
   }
 
-  /*
-    Weak tracking signals.
-    These are NOT real affiliate networks.
-    Keep them as last fallback only.
-  */
   if (
     hasAny(params, [
       "subid",
@@ -156,6 +145,11 @@ function detectPublisherFromParams(params, rawUrl) {
   const subid = decodeURIComponent(params.subid || "").toLowerCase();
   const subid1 = decodeURIComponent(params.subid1 || "").toLowerCase();
   const sourceid = decodeURIComponent(params.sourceid || "").toLowerCase();
+
+  const cjPublisherCid = decodeURIComponent(params.cj_publishercid || "").toLowerCase();
+  const utmSource = decodeURIComponent(params.utm_source || "").toLowerCase();
+  const utmMedium = decodeURIComponent(params.utm_medium || "").toLowerCase();
+
   const raw = decodeURIComponent(String(rawUrl || "")).toLowerCase();
 
   const combined = [
@@ -167,6 +161,9 @@ function detectPublisherFromParams(params, rawUrl) {
     subid,
     subid1,
     sourceid,
+    cjPublisherCid,
+    utmSource,
+    utmMedium,
     raw
   ].join(" ");
 
@@ -242,6 +239,25 @@ function detectPublisherFromParams(params, rawUrl) {
       source: "sharedid_param",
       trafficType: "Commerce / Affiliate",
       quality: 65,
+      incrementalityRisk: "Medium"
+    };
+  }
+
+  if (cjPublisherCid || utmSource.includes("cj-affiliate")) {
+    return {
+      publisher: cjPublisherCid
+        ? `CJ Publisher ID ${cjPublisherCid}`
+        : "CJ Publisher",
+      domain: "",
+      group: "CJ Affiliate Publisher",
+      groupKey: "cj_publisher",
+      category: "affiliate_publisher",
+      region: "unknown",
+      confidence: "medium",
+      matchType: "cj_publisher_id",
+      source: "cj_param",
+      trafficType: "Affiliate",
+      quality: 55,
       incrementalityRisk: "Medium"
     };
   }
@@ -340,6 +356,7 @@ function detectCommercialIntent(params, network, publisherInfo, paidLayer) {
   if (category === "deal_site") return "Deal Hunting Intent";
   if (category === "review_site") return "Research / Review Intent";
   if (category === "commerce_media") return "Shopping / Comparison Intent";
+  if (category === "affiliate_publisher") return "Affiliate / Partner Intent";
   if (category === "creator") return "Creator Recommendation Intent";
   if (category === "sub_affiliate") return "Syndicated Click Intent";
   if (category === "b2b_review") return "Software Evaluation Intent";
@@ -362,6 +379,7 @@ function detectChannelRole(params, network, publisherInfo, paidLayer) {
   if (category === "deal_site") return "Promo Discovery / Lower Funnel";
   if (category === "review_site") return "Mid-funnel Review Assist";
   if (category === "commerce_media") return "Editorial Commerce / Deal Assist";
+  if (category === "affiliate_publisher") return "Affiliate Network Layer";
   if (category === "creator") return "Demand Creation / Creator Influence";
   if (category === "sub_affiliate") return "Tracking / Syndication Layer";
   if (category === "b2b_review") return "Lead Assist / Evaluation Layer";
@@ -444,6 +462,7 @@ function detectSignals(params, network, publisherInfo, paidLayer) {
         "irgwc",
         "cjevent",
         "cjdata",
+        "cj_publishercid",
         "awc",
         "clickref",
         "sscid",
@@ -480,7 +499,9 @@ function detectSignals(params, network, publisherInfo, paidLayer) {
       "review_site",
       "commerce_media",
       "b2b_review"
-    ].includes(category)
+    ].includes(category),
+
+    hasCJPublisherId: !!params.cj_publishercid
   };
 }
 
@@ -490,7 +511,7 @@ function analyzeLink(inputUrl) {
   if (!parsed) {
     return {
       ok: false,
-      version: "BrandShuo Analyze v2.9.2 Impact Priority Fix",
+      version: "BrandShuo Analyze v2.9.3 LG CJ Publisher ID Fix",
       error: "Invalid URL",
       input: inputUrl
     };
@@ -536,6 +557,10 @@ function analyzeLink(inputUrl) {
     qualityScore = Math.max(qualityScore, 60);
   }
 
+  if (network === "CJ Affiliate" && platform === "LG") {
+    qualityScore = Math.max(qualityScore, 55);
+  }
+
   if (paidLayer.hasPaidLayer && network !== "Unknown") {
     qualityScore = Math.max(55, qualityScore - 5);
   }
@@ -544,7 +569,7 @@ function analyzeLink(inputUrl) {
 
   return {
     ok: true,
-    version: "BrandShuo Analyze v2.9.2 Impact Priority Fix",
+    version: "BrandShuo Analyze v2.9.3 LG CJ Publisher ID Fix",
 
     input: rawUrl,
     normalizedUrl: parsed.href,
@@ -632,7 +657,7 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({
       ok: false,
-      version: "BrandShuo Analyze v2.9.2 Impact Priority Fix",
+      version: "BrandShuo Analyze v2.9.3 LG CJ Publisher ID Fix",
       error: err.message || "Server error"
     });
   }
