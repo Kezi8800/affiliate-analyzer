@@ -40,8 +40,8 @@ function detectPlatform(host) {
   if (!host) return "Unknown Merchant";
 
   if (host.includes("dell.")) return "Dell";
-  if (host.includes("amazon.")) return "Amazon";
   if (host.includes("walmart.")) return "Walmart";
+  if (host.includes("amazon.")) return "Amazon";
   if (host.includes("ebay.")) return "eBay";
   if (host.includes("target.")) return "Target";
   if (host.includes("bestbuy.")) return "Best Buy";
@@ -56,13 +56,31 @@ function detectNetwork(params, rawUrl, host) {
   const url = String(rawUrl || "").toLowerCase();
   const isAmazon = host && host.includes("amazon.");
 
-  if (hasAny(params, ["irclickid"]) || url.includes("impactradius")) {
+  const sourceid = String(params.sourceid || "").toLowerCase();
+  const wmlspartner = String(params.wmlspartner || "").toLowerCase();
+  const dgc = String(params.dgc || "").toLowerCase();
+
+  /*
+    IMPORTANT:
+    Network detection must use strong network signals first.
+    Do not let subid / sharedid / aff_user_id override CJ / Impact / Awin.
+  */
+
+  // Impact / Impact Radius
+  if (
+    hasAny(params, ["irclickid"]) ||
+    params.irgwc === "1" ||
+    sourceid.startsWith("imp_") ||
+    wmlspartner.startsWith("imp_") ||
+    url.includes("impactradius")
+  ) {
     return "Impact";
   }
 
+  // CJ Affiliate
   if (
     hasAny(params, ["cjevent", "cjdata"]) ||
-    String(params.dgc || "").toLowerCase() === "cj"
+    dgc === "cj"
   ) {
     return "CJ Affiliate";
   }
@@ -77,22 +95,33 @@ function detectNetwork(params, rawUrl, host) {
   if (hasAny(params, ["pjid", "pjmid"])) return "Partnerize / Pepperjam";
   if (hasAny(params, ["admitad_uid"])) return "Admitad";
 
-  /*
-    Paid click ids are traffic layers, not affiliate networks.
-    Do not return Google Ads / Meta Ads here.
-  */
-
+  // Amazon special handling
   if (isAmazon) {
     if (params.tag) return "Amazon Associates";
     return "Amazon";
   }
 
-  if (hasAny(params, ["afftrack", "affid", "affiliate_id", "publisherid"])) {
-    return "Affiliate Tracking";
+  /*
+    Weak tracking signals.
+    These are NOT real affiliate networks.
+    Keep them as last fallback only.
+  */
+  if (
+    hasAny(params, [
+      "subid",
+      "subid1",
+      "subid2",
+      "subid3",
+      "ascsubtag",
+      "sharedid",
+      "sid"
+    ])
+  ) {
+    return "Sub-affiliate / Publisher Tracking";
   }
 
-  if (hasAny(params, ["subid", "subid1", "subid2", "subid3", "sharedid", "ascsubtag"])) {
-    return "Sub-affiliate / Publisher Tracking";
+  if (hasAny(params, ["afftrack", "affid", "affiliate_id", "publisherid"])) {
+    return "Affiliate Tracking";
   }
 
   return "Unknown";
@@ -102,8 +131,8 @@ function detectPaidLayer(params) {
   const signals = [];
 
   if (params.gclid) signals.push("Google Ads");
-  if (params.gbraid || params.wbraid) signals.push("Google Ads iOS");
   if (params.gad_campaignid || params.gad_source) signals.push("Google Ads");
+  if (params.gbraid || params.wbraid) signals.push("Google Ads iOS");
   if (params.dclid) signals.push("DV360 / Display Ads");
   if (params.fbclid) signals.push("Meta Ads");
   if (params.ttclid) signals.push("TikTok Ads");
@@ -123,9 +152,23 @@ function detectPublisherFromParams(params, rawUrl) {
   const publisher = decodeURIComponent(params.publisher || "").toLowerCase();
   const affUserId = decodeURIComponent(params.aff_user_id || "").toLowerCase();
   const ven1 = decodeURIComponent(params.ven1 || "").toLowerCase();
+  const sharedid = decodeURIComponent(params.sharedid || "").toLowerCase();
+  const subid = decodeURIComponent(params.subid || "").toLowerCase();
+  const subid1 = decodeURIComponent(params.subid1 || "").toLowerCase();
+  const sourceid = decodeURIComponent(params.sourceid || "").toLowerCase();
   const raw = decodeURIComponent(String(rawUrl || "")).toLowerCase();
 
-  const combined = `${aff} ${publisher} ${affUserId} ${ven1} ${raw}`;
+  const combined = [
+    aff,
+    publisher,
+    affUserId,
+    ven1,
+    sharedid,
+    subid,
+    subid1,
+    sourceid,
+    raw
+  ].join(" ");
 
   if (
     combined.includes("future publishing") ||
@@ -179,6 +222,27 @@ function detectPublisherFromParams(params, rawUrl) {
       trafficType: "Deal / Coupon",
       quality: 60,
       incrementalityRisk: "High"
+    };
+  }
+
+  if (
+    sharedid === "hawk" ||
+    combined.includes("sharedid=hawk") ||
+    combined.includes("hawk")
+  ) {
+    return {
+      publisher: "Hawk",
+      domain: "",
+      group: "Affiliate Publisher",
+      groupKey: "hawk",
+      category: "commerce_media",
+      region: "US",
+      confidence: "medium",
+      matchType: "sharedid_match",
+      source: "sharedid_param",
+      trafficType: "Commerce / Affiliate",
+      quality: 65,
+      incrementalityRisk: "Medium"
     };
   }
 
@@ -275,7 +339,7 @@ function detectCommercialIntent(params, network, publisherInfo, paidLayer) {
   if (category === "cashback") return "Cashback / Reward Intent";
   if (category === "deal_site") return "Deal Hunting Intent";
   if (category === "review_site") return "Research / Review Intent";
-  if (category === "commerce_media") return "Editorial Commerce Intent";
+  if (category === "commerce_media") return "Shopping / Comparison Intent";
   if (category === "creator") return "Creator Recommendation Intent";
   if (category === "sub_affiliate") return "Syndicated Click Intent";
   if (category === "b2b_review") return "Software Evaluation Intent";
@@ -297,7 +361,7 @@ function detectChannelRole(params, network, publisherInfo, paidLayer) {
   if (category === "cashback") return "Loyalty / Cashback Layer";
   if (category === "deal_site") return "Promo Discovery / Lower Funnel";
   if (category === "review_site") return "Mid-funnel Review Assist";
-  if (category === "commerce_media") return "Editorial Discovery / Consideration";
+  if (category === "commerce_media") return "Editorial Commerce / Deal Assist";
   if (category === "creator") return "Demand Creation / Creator Influence";
   if (category === "sub_affiliate") return "Tracking / Syndication Layer";
   if (category === "b2b_review") return "Lead Assist / Evaluation Layer";
@@ -317,7 +381,6 @@ function detectChannelRole(params, network, publisherInfo, paidLayer) {
 
 function detectRisk(publisherInfo, network, paidLayer) {
   if (paidLayer?.hasPaidLayer && network !== "Unknown") return "High";
-
   if (publisherInfo?.incrementalityRisk) return publisherInfo.incrementalityRisk;
 
   if (network === "Amazon Associates") return "Medium";
@@ -343,7 +406,7 @@ function detectConfidence(platform, network, publisherInfo, paidLayer) {
 
 function getQualityLabel(score) {
   if (score >= 70) return "Strong";
-  if (score >= 50) return "Medium";
+  if (score >= 50) return "Moderate";
   return "Weak";
 }
 
@@ -378,6 +441,7 @@ function detectSignals(params, network, publisherInfo, paidLayer) {
       network !== "Unknown" ||
       hasAny(params, [
         "irclickid",
+        "irgwc",
         "cjevent",
         "cjdata",
         "awc",
@@ -386,7 +450,9 @@ function detectSignals(params, network, publisherInfo, paidLayer) {
         "ranmid",
         "affid",
         "afftrack",
-        "publisherid"
+        "publisherid",
+        "wmlspartner",
+        "sourceid"
       ]),
 
     hasAmazonTag: !!params.tag,
@@ -424,7 +490,7 @@ function analyzeLink(inputUrl) {
   if (!parsed) {
     return {
       ok: false,
-      version: "BrandShuo Analyze v2.9.1 Dell CJ Publisher Fix",
+      version: "BrandShuo Analyze v2.9.2 Impact Priority Fix",
       error: "Invalid URL",
       input: inputUrl
     };
@@ -456,11 +522,19 @@ function analyzeLink(inputUrl) {
 
   if (paidLayer.hasPaidLayer && network !== "Unknown") {
     finalTrafficType = "Paid Media + Affiliate";
+  } else if (network !== "Unknown" && publisherInfo.publisher !== "Unknown Publisher") {
+    finalTrafficType = publisherInfo.trafficType || "Affiliate";
+  } else if (network !== "Unknown") {
+    finalTrafficType = "Affiliate";
   } else if (paidLayer.hasPaidLayer) {
     finalTrafficType = "Paid Media";
   }
 
   let qualityScore = publisherInfo.quality || 40;
+
+  if (network === "Impact" && platform === "Walmart") {
+    qualityScore = Math.max(qualityScore, 60);
+  }
 
   if (paidLayer.hasPaidLayer && network !== "Unknown") {
     qualityScore = Math.max(55, qualityScore - 5);
@@ -470,7 +544,7 @@ function analyzeLink(inputUrl) {
 
   return {
     ok: true,
-    version: "BrandShuo Analyze v2.9.1 Dell CJ Publisher Fix",
+    version: "BrandShuo Analyze v2.9.2 Impact Priority Fix",
 
     input: rawUrl,
     normalizedUrl: parsed.href,
@@ -510,10 +584,6 @@ function analyzeLink(inputUrl) {
       confidence
     },
 
-    /*
-      Frontend compatibility fields
-      These are added because some Elementor versions read flat fields.
-    */
     publisher_name: publisherInfo.publisher,
     publisher_group: publisherInfo.group,
     publisher_category: publisherInfo.category,
@@ -562,7 +632,7 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({
       ok: false,
-      version: "BrandShuo Analyze v2.9.1 Dell CJ Publisher Fix",
+      version: "BrandShuo Analyze v2.9.2 Impact Priority Fix",
       error: err.message || "Server error"
     });
   }
