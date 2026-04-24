@@ -50,8 +50,9 @@ function detectPlatform(host) {
   return "Unknown Merchant";
 }
 
-function detectNetwork(params, rawUrl) {
+function detectNetwork(params, rawUrl, host) {
   const url = String(rawUrl || "").toLowerCase();
+  const isAmazon = host && host.includes("amazon.");
 
   if (hasAny(params, ["irclickid"]) || url.includes("impactradius")) {
     return "Impact";
@@ -97,14 +98,6 @@ function detectNetwork(params, rawUrl) {
     return "Admitad";
   }
 
-  if (hasAny(params, ["afftrack", "affid", "affiliate_id"])) {
-    return "Affiliate Tracking";
-  }
-
-  if (hasAny(params, ["subid", "subid1", "subid2", "subid3", "sharedid", "ascsubtag"])) {
-    return "Sub-affiliate / Publisher Tracking";
-  }
-
   if (hasAny(params, ["gclid", "gbraid", "wbraid", "gad_campaignid"])) {
     return "Google Ads";
   }
@@ -121,6 +114,24 @@ function detectNetwork(params, rawUrl) {
     return "Microsoft Ads";
   }
 
+  /*
+    Amazon special rule:
+    ascsubtag / subId / sharedId are publisher tracking IDs on Amazon links.
+    They should remain as signal flags, not override the main network.
+  */
+  if (isAmazon) {
+    if (params.tag) return "Amazon Associates";
+    return "Amazon";
+  }
+
+  if (hasAny(params, ["afftrack", "affid", "affiliate_id"])) {
+    return "Affiliate Tracking";
+  }
+
+  if (hasAny(params, ["subid", "subid1", "subid2", "subid3", "sharedid", "ascsubtag"])) {
+    return "Sub-affiliate / Publisher Tracking";
+  }
+
   return "Unknown";
 }
 
@@ -134,8 +145,8 @@ function detectAmazonLayer(params, host) {
 
   /*
     Amazon Attribution:
-    只有这些明确 Attribution 参数才判定。
-    注意：不能因为普通 ref_ 就判定 Attribution。
+    Only explicit Amazon Attribution parameters should trigger this.
+    A normal ref_ parameter should NOT be treated as Attribution.
   */
   const hasAttribution =
     hasAny(params, [
@@ -147,13 +158,15 @@ function detectAmazonLayer(params, host) {
     refValue.includes("aa_maas");
 
   /*
-    Amazon Creator Connections / Creator-style signals:
-    常见参数：
+    Amazon Creator Connections / creator-style signals:
     - campaignId / campaignid
     - linkId / linkid
     - linkCode=tr1
     - linkCode=ur2
-    - creative + camp 组合也常见于 Amazon affiliate 链接
+
+    Note:
+    creative + camp are common Amazon affiliate parameters,
+    but they alone should not force ACC.
   */
   const hasCreatorSignal =
     hasAny(params, ["campaignid", "linkid"]) ||
@@ -223,6 +236,9 @@ function detectCommercialIntent(params, network, publisherInfo) {
   if (category === "sub_affiliate") return "Syndicated Click Intent";
   if (category === "b2b_review") return "Software Evaluation Intent";
 
+  if (network === "Amazon Associates") return "Amazon Affiliate Intent";
+  if (network === "Amazon") return "Amazon Retail Intent";
+
   if (network && network.includes("Ads")) return "Paid Traffic Intent";
   if (network && network !== "Unknown") return "Affiliate / Partner Intent";
 
@@ -241,6 +257,9 @@ function detectChannelRole(params, network, publisherInfo) {
   if (category === "sub_affiliate") return "Tracking / Syndication Layer";
   if (category === "b2b_review") return "Lead Assist / Evaluation Layer";
 
+  if (network === "Amazon Associates") return "Affiliate / Publisher Attribution";
+  if (network === "Amazon") return "Retail / Marketplace Destination";
+
   if (network && network.includes("Ads")) return "Paid Acquisition";
   if (network && network !== "Unknown") return "Affiliate Network Layer";
 
@@ -251,6 +270,9 @@ function detectRisk(publisherInfo, network) {
   if (publisherInfo?.incrementalityRisk) {
     return publisherInfo.incrementalityRisk;
   }
+
+  if (network === "Amazon Associates") return "Medium";
+  if (network === "Amazon") return "Low";
 
   if (network && network.includes("Ads")) return "Medium";
   if (network && network !== "Unknown") return "Medium";
@@ -265,11 +287,18 @@ function makePathLabel(platform, network, amazonLayer, publisherInfo) {
     parts.push(platform);
   }
 
+  /*
+    Avoid duplicate path like:
+    Amazon → Amazon Associates → Amazon Associates
+  */
   if (network && network !== "Unknown") {
     parts.push(network);
   }
 
-  if (amazonLayer?.layer) {
+  if (
+    amazonLayer?.layer &&
+    amazonLayer.layer !== network
+  ) {
     parts.push(amazonLayer.layer);
   }
 
@@ -344,7 +373,7 @@ function analyzeLink(inputUrl) {
   if (!parsed) {
     return {
       ok: false,
-      version: "BrandShuo Analyze v2.6 Publisher DB",
+      version: "BrandShuo Analyze v2.7 Publisher DB",
       error: "Invalid URL",
       input: inputUrl
     };
@@ -355,7 +384,7 @@ function analyzeLink(inputUrl) {
   const params = getParams(parsed);
 
   const platform = detectPlatform(host);
-  const network = detectNetwork(params, rawUrl);
+  const network = detectNetwork(params, rawUrl, host);
   const amazonLayer = detectAmazonLayer(params, host);
   const publisherInfo = detectPublisherByUrl(rawUrl);
 
@@ -367,7 +396,7 @@ function analyzeLink(inputUrl) {
 
   return {
     ok: true,
-    version: "BrandShuo Analyze v2.6 Publisher DB",
+    version: "BrandShuo Analyze v2.7 Publisher DB",
 
     input: rawUrl,
     normalizedUrl: parsed.href,
@@ -425,7 +454,7 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({
       ok: false,
-      version: "BrandShuo Analyze v2.6 Publisher DB",
+      version: "BrandShuo Analyze v2.7 Publisher DB",
       error: err.message || "Server error"
     });
   }
