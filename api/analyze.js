@@ -67,41 +67,15 @@ function detectNetwork(params, rawUrl, host) {
     return "CJ Affiliate";
   }
 
-  if (hasAny(params, ["awc"])) {
-    return "Awin";
-  }
-
-  if (hasAny(params, ["ranmid", "ransiteid", "raneaid"])) {
-    return "Rakuten";
-  }
-
-  if (hasAny(params, ["clickref", "click_ref"])) {
-    return "Partnerize";
-  }
-
-  if (hasAny(params, ["sscid"])) {
-    return "ShareASale";
-  }
-
-  if (hasAny(params, ["tduid", "trafficsourceid"])) {
-    return "TradeDoubler";
-  }
-
-  if (hasAny(params, ["wgcampaignid", "wgprogramid"])) {
-    return "Webgains";
-  }
-
-  if (hasAny(params, ["faid", "fobs"])) {
-    return "FlexOffers";
-  }
-
-  if (hasAny(params, ["pjid", "pjmid"])) {
-    return "Partnerize / Pepperjam";
-  }
-
-  if (hasAny(params, ["admitad_uid"])) {
-    return "Admitad";
-  }
+  if (hasAny(params, ["awc"])) return "Awin";
+  if (hasAny(params, ["ranmid", "ransiteid", "raneaid"])) return "Rakuten";
+  if (hasAny(params, ["clickref", "click_ref"])) return "Partnerize";
+  if (hasAny(params, ["sscid"])) return "ShareASale";
+  if (hasAny(params, ["tduid", "trafficsourceid"])) return "TradeDoubler";
+  if (hasAny(params, ["wgcampaignid", "wgprogramid"])) return "Webgains";
+  if (hasAny(params, ["faid", "fobs"])) return "FlexOffers";
+  if (hasAny(params, ["pjid", "pjmid"])) return "Partnerize / Pepperjam";
+  if (hasAny(params, ["admitad_uid"])) return "Admitad";
 
   /*
     Paid click ids are traffic layers, not affiliate networks.
@@ -140,7 +114,7 @@ function detectPaidLayer(params) {
   return {
     hasPaidLayer: uniqueSignals.length > 0,
     signals: uniqueSignals,
-    trafficType: uniqueSignals.length > 0 ? "Paid Media + Affiliate" : null
+    trafficType: uniqueSignals.length > 0 ? "Paid Media" : "Unknown"
   };
 }
 
@@ -232,17 +206,11 @@ function detectAmazonLayer(params, host) {
   if (!host.includes("amazon.")) return null;
 
   const hasTag = !!params.tag;
-
   const linkCode = String(params.linkcode || "").toLowerCase();
   const refValue = String(params.ref_ || "").toLowerCase();
 
   const hasAttribution =
-    hasAny(params, [
-      "maas",
-      "aa_campaignid",
-      "aa_adgroupid",
-      "aa_creativeid"
-    ]) ||
+    hasAny(params, ["maas", "aa_campaignid", "aa_adgroupid", "aa_creativeid"]) ||
     refValue.includes("aa_maas");
 
   const hasCreatorSignal =
@@ -251,8 +219,7 @@ function detectAmazonLayer(params, host) {
     linkCode === "ur2";
 
   const hasClassicAssociateSignal =
-    hasTag ||
-    hasAny(params, ["camp", "creative"]);
+    hasTag || hasAny(params, ["camp", "creative"]);
 
   if (hasAttribution) {
     return {
@@ -316,12 +283,8 @@ function detectCommercialIntent(params, network, publisherInfo, paidLayer) {
   if (network === "Amazon Associates") return "Amazon Affiliate Intent";
   if (network === "Amazon") return "Amazon Retail Intent";
 
-  if (paidLayer?.hasPaidLayer && network !== "Unknown") {
-    return "Paid + Affiliate Intent";
-  }
-
+  if (paidLayer?.hasPaidLayer && network !== "Unknown") return "Paid + Affiliate Intent";
   if (network && network !== "Unknown") return "Affiliate / Partner Intent";
-
   if (paidLayer?.hasPaidLayer) return "Paid Traffic Intent";
 
   return "Unknown Intent";
@@ -347,26 +310,19 @@ function detectChannelRole(params, network, publisherInfo, paidLayer) {
   }
 
   if (network && network !== "Unknown") return "Affiliate Network Layer";
-
   if (paidLayer?.hasPaidLayer) return "Paid Acquisition";
 
   return "Unknown Role";
 }
 
 function detectRisk(publisherInfo, network, paidLayer) {
-  if (paidLayer?.hasPaidLayer && network !== "Unknown") {
-    return "High";
-  }
+  if (paidLayer?.hasPaidLayer && network !== "Unknown") return "High";
 
-  if (publisherInfo?.incrementalityRisk) {
-    return publisherInfo.incrementalityRisk;
-  }
+  if (publisherInfo?.incrementalityRisk) return publisherInfo.incrementalityRisk;
 
   if (network === "Amazon Associates") return "Medium";
   if (network === "Amazon") return "Low";
-
   if (network && network !== "Unknown") return "Medium";
-
   if (paidLayer?.hasPaidLayer) return "Medium";
 
   return "Unknown";
@@ -385,34 +341,28 @@ function detectConfidence(platform, network, publisherInfo, paidLayer) {
   return "low";
 }
 
+function getQualityLabel(score) {
+  if (score >= 70) return "Strong";
+  if (score >= 50) return "Medium";
+  return "Weak";
+}
+
 function makePathLabel(platform, network, amazonLayer, publisherInfo, paidLayer) {
   const parts = [];
 
-  if (paidLayer?.hasPaidLayer) {
-    parts.push("Paid Media");
-  }
+  if (paidLayer?.hasPaidLayer) parts.push("Paid Media");
 
-  if (
-    publisherInfo?.publisher &&
-    publisherInfo.publisher !== "Unknown Publisher"
-  ) {
+  if (publisherInfo?.publisher && publisherInfo.publisher !== "Unknown Publisher") {
     parts.push(publisherInfo.publisher);
   }
 
-  if (network && network !== "Unknown") {
-    parts.push(network);
-  }
+  if (network && network !== "Unknown") parts.push(network);
 
-  if (
-    amazonLayer?.layer &&
-    amazonLayer.layer !== network
-  ) {
+  if (amazonLayer?.layer && amazonLayer.layer !== network) {
     parts.push(amazonLayer.layer);
   }
 
-  if (platform && platform !== "Unknown Merchant") {
-    parts.push(platform);
-  }
+  if (platform && platform !== "Unknown Merchant") parts.push(platform);
 
   if (!parts.length) return "Unknown Link Path";
 
@@ -474,7 +424,7 @@ function analyzeLink(inputUrl) {
   if (!parsed) {
     return {
       ok: false,
-      version: "BrandShuo Analyze v2.9 Param Publisher + Paid Layer",
+      version: "BrandShuo Analyze v2.9.1 Dell CJ Publisher Fix",
       error: "Invalid URL",
       input: inputUrl
     };
@@ -489,13 +439,6 @@ function analyzeLink(inputUrl) {
   const paidLayer = detectPaidLayer(params);
   const amazonLayer = detectAmazonLayer(params, host);
 
-  /*
-    Publisher detection priority:
-    1. URL params, e.g. aff=Future Publishing / aff_user_id=tomsguide
-    2. Amazon tag mapping, e.g. slickdeals09-20 → Slickdeals
-    3. URL/domain based publisher database
-    4. fallback unknown object
-  */
   const publisherInfo =
     detectPublisherFromParams(params, rawUrl) ||
     detectPublisherByAmazonTag(params.tag) ||
@@ -523,16 +466,22 @@ function analyzeLink(inputUrl) {
     qualityScore = Math.max(55, qualityScore - 5);
   }
 
+  const qualityLabel = getQualityLabel(qualityScore);
+
   return {
     ok: true,
-    version: "BrandShuo Analyze v2.9 Param Publisher + Paid Layer",
+    version: "BrandShuo Analyze v2.9.1 Dell CJ Publisher Fix",
 
     input: rawUrl,
     normalizedUrl: parsed.href,
     domain: host,
+
     platform,
+    merchant: platform,
 
     network,
+
+    detection_result: network,
 
     amazon: amazonLayer,
 
@@ -556,9 +505,35 @@ function analyzeLink(inputUrl) {
       commercialIntent,
       channelRole,
       qualityScore,
+      qualityLabel,
       incrementalityRisk,
       confidence
     },
+
+    /*
+      Frontend compatibility fields
+      These are added because some Elementor versions read flat fields.
+    */
+    publisher_name: publisherInfo.publisher,
+    publisher_group: publisherInfo.group,
+    publisher_category: publisherInfo.category,
+    traffic_type: finalTrafficType,
+    quality_score: qualityScore,
+    quality_label: qualityLabel,
+    risk: incrementalityRisk,
+    confidence,
+
+    tracking_layer: {
+      platform,
+      merchant: platform,
+      network,
+      publisher: publisherInfo.publisher,
+      publisher_group: publisherInfo.group,
+      amazon_layer: amazonLayer?.layer || "--",
+      domain: host
+    },
+
+    path: pathLabel.split(" → "),
 
     signals,
 
@@ -587,7 +562,7 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({
       ok: false,
-      version: "BrandShuo Analyze v2.9 Param Publisher + Paid Layer",
+      version: "BrandShuo Analyze v2.9.1 Dell CJ Publisher Fix",
       error: err.message || "Server error"
     });
   }
