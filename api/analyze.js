@@ -39,6 +39,7 @@ function hasAny(params, keys) {
 function detectPlatform(host) {
   if (!host) return "Unknown Merchant";
 
+  if (host.includes("samsung.")) return "Samsung";
   if (host.includes("lg.com")) return "LG";
   if (host.includes("dell.")) return "Dell";
   if (host.includes("walmart.")) return "Walmart";
@@ -80,8 +81,11 @@ function detectNetwork(params, rawUrl, host) {
     return "CJ Affiliate";
   }
 
+  if (hasAny(params, ["ranmid", "ransiteid", "raneaid"]) || params.rktevent) {
+    return "Rakuten";
+  }
+
   if (hasAny(params, ["awc"])) return "Awin";
-  if (hasAny(params, ["ranmid", "ransiteid", "raneaid"])) return "Rakuten";
   if (hasAny(params, ["clickref", "click_ref"])) return "Partnerize";
   if (hasAny(params, ["sscid"])) return "ShareASale";
   if (hasAny(params, ["tduid", "trafficsourceid"])) return "TradeDoubler";
@@ -137,58 +141,58 @@ function detectPaidLayer(params) {
 }
 
 function detectPublisherFromParams(params, rawUrl) {
-  const aff = decodeURIComponent(params.aff || "").toLowerCase();
-  const publisher = decodeURIComponent(params.publisher || "").toLowerCase();
-  const affUserId = decodeURIComponent(params.aff_user_id || "").toLowerCase();
-  const ven1 = decodeURIComponent(params.ven1 || "").toLowerCase();
-  const sharedid = decodeURIComponent(params.sharedid || "").toLowerCase();
-  const subid = decodeURIComponent(params.subid || "").toLowerCase();
-  const subid1 = decodeURIComponent(params.subid1 || "").toLowerCase();
-  const sourceid = decodeURIComponent(params.sourceid || "").toLowerCase();
-
-  const cjPublisherCid = decodeURIComponent(params.cj_publishercid || "").toLowerCase();
-  const utmSource = decodeURIComponent(params.utm_source || "").toLowerCase();
-  const utmMedium = decodeURIComponent(params.utm_medium || "").toLowerCase();
-
-  const raw = decodeURIComponent(String(rawUrl || "")).toLowerCase();
-
-  const combined = [
-    aff,
-    publisher,
-    affUserId,
-    ven1,
-    sharedid,
-    subid,
-    subid1,
-    sourceid,
-    cjPublisherCid,
-    utmSource,
-    utmMedium,
-    raw
-  ].join(" ");
+  const fields = [
+    params.aff,
+    params.publisher,
+    params.aff_user_id,
+    params.ven1,
+    params.sharedid,
+    params.subid,
+    params.subid1,
+    params.sourceid,
+    params.utm_source,
+    params.utm_medium,
+    params.utm_campaign,
+    params.utm_content,
+    params.cid,
+    params.rktevent,
+    params.raneaid,
+    params.ransiteid,
+    params.cj_publishercid,
+    rawUrl
+  ]
+    .filter(Boolean)
+    .map((v) => decodeURIComponent(String(v)).toLowerCase())
+    .join(" ");
 
   if (
-    combined.includes("future publishing") ||
-    combined.includes("tomsguide") ||
-    combined.includes("tom's guide")
+    fields.includes("future us") ||
+    fields.includes("future+us") ||
+    fields.includes("future publishing") ||
+    fields.includes("future+publishing") ||
+    fields.includes("tomsguide") ||
+    fields.includes("tom's guide") ||
+    fields.includes("techradar") ||
+    fields.includes("pcgamer") ||
+    fields.includes("laptopmag")
   ) {
     return {
-      publisher: "Tom's Guide",
-      domain: "tomsguide.com",
+      publisher: "Future US",
+      domain: "",
       group: "Future Publishing",
       groupKey: "future_publishing",
       category: "review_site",
       region: "US",
       confidence: "high",
-      matchType: "param_match",
-      source: "aff_param",
+      matchType: "multi_param_match",
+      source: "utm_or_affiliate_param",
       trafficType: "Content / Review",
       quality: 75,
       incrementalityRisk: "Medium"
     };
   }
 
-  if (combined.includes("cnet")) {
+  if (fields.includes("cnet")) {
     return {
       publisher: "CNET",
       domain: "cnet.com",
@@ -205,7 +209,7 @@ function detectPublisherFromParams(params, rawUrl) {
     };
   }
 
-  if (combined.includes("slickdeals")) {
+  if (fields.includes("slickdeals")) {
     return {
       publisher: "Slickdeals",
       domain: "slickdeals.net",
@@ -222,11 +226,7 @@ function detectPublisherFromParams(params, rawUrl) {
     };
   }
 
-  if (
-    sharedid === "hawk" ||
-    combined.includes("sharedid=hawk") ||
-    combined.includes("hawk")
-  ) {
+  if (fields.includes("hawk")) {
     return {
       publisher: "Hawk",
       domain: "",
@@ -243,10 +243,10 @@ function detectPublisherFromParams(params, rawUrl) {
     };
   }
 
-  if (cjPublisherCid || utmSource.includes("cj-affiliate")) {
+  if (params.cj_publishercid || String(params.utm_source || "").toLowerCase().includes("cj-affiliate")) {
     return {
-      publisher: cjPublisherCid
-        ? `CJ Publisher ID ${cjPublisherCid}`
+      publisher: params.cj_publishercid
+        ? `CJ Publisher ID ${params.cj_publishercid}`
         : "CJ Publisher",
       domain: "",
       group: "CJ Affiliate Publisher",
@@ -256,6 +256,25 @@ function detectPublisherFromParams(params, rawUrl) {
       confidence: "medium",
       matchType: "cj_publisher_id",
       source: "cj_param",
+      trafficType: "Affiliate",
+      quality: 55,
+      incrementalityRisk: "Medium"
+    };
+  }
+
+  if (params.ransiteid || params.raneaid || params.rktevent) {
+    return {
+      publisher: params.ransiteid
+        ? `Rakuten Publisher ID ${params.ransiteid}`
+        : "Rakuten Publisher",
+      domain: "",
+      group: "Rakuten Publisher",
+      groupKey: "rakuten_publisher",
+      category: "affiliate_publisher",
+      region: "unknown",
+      confidence: "medium",
+      matchType: "rakuten_publisher_id",
+      source: "rakuten_param",
       trafficType: "Affiliate",
       quality: 55,
       incrementalityRisk: "Medium"
@@ -467,6 +486,9 @@ function detectSignals(params, network, publisherInfo, paidLayer) {
         "clickref",
         "sscid",
         "ranmid",
+        "raneaid",
+        "ransiteid",
+        "rktevent",
         "affid",
         "afftrack",
         "publisherid",
@@ -501,7 +523,8 @@ function detectSignals(params, network, publisherInfo, paidLayer) {
       "b2b_review"
     ].includes(category),
 
-    hasCJPublisherId: !!params.cj_publishercid
+    hasCJPublisherId: !!params.cj_publishercid,
+    hasRakutenPublisherId: !!params.ransiteid || !!params.raneaid || !!params.rktevent
   };
 }
 
@@ -511,7 +534,7 @@ function analyzeLink(inputUrl) {
   if (!parsed) {
     return {
       ok: false,
-      version: "BrandShuo Analyze v2.9.3 LG CJ Publisher ID Fix",
+      version: "BrandShuo Analyze v2.9.4 Samsung Rakuten Future US Fix",
       error: "Invalid URL",
       input: inputUrl
     };
@@ -561,6 +584,10 @@ function analyzeLink(inputUrl) {
     qualityScore = Math.max(qualityScore, 55);
   }
 
+  if (network === "Rakuten" && platform === "Samsung") {
+    qualityScore = Math.max(qualityScore, 55);
+  }
+
   if (paidLayer.hasPaidLayer && network !== "Unknown") {
     qualityScore = Math.max(55, qualityScore - 5);
   }
@@ -569,7 +596,7 @@ function analyzeLink(inputUrl) {
 
   return {
     ok: true,
-    version: "BrandShuo Analyze v2.9.3 LG CJ Publisher ID Fix",
+    version: "BrandShuo Analyze v2.9.4 Samsung Rakuten Future US Fix",
 
     input: rawUrl,
     normalizedUrl: parsed.href,
@@ -657,7 +684,7 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({
       ok: false,
-      version: "BrandShuo Analyze v2.9.3 LG CJ Publisher ID Fix",
+      version: "BrandShuo Analyze v2.9.4 Samsung Rakuten Future US Fix",
       error: err.message || "Server error"
     });
   }
