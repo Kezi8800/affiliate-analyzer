@@ -31,6 +31,14 @@ function detectPublisherByUrl(url) {
   }
 }
 
+function safeDecode(value) {
+  try {
+    return decodeURIComponent(String(value || ""));
+  } catch {
+    return String(value || "");
+  }
+}
+
 function safeUrl(input) {
   try {
     if (!input) return null;
@@ -171,6 +179,59 @@ function detectPaidLayer(params) {
 }
 
 function detectPublisherFromParams(params, rawUrl) {
+  const tag = String(params.tag || "").toLowerCase();
+  const ascsubtag = safeDecode(params.ascsubtag || "").toLowerCase();
+  const raw = safeDecode(rawUrl || "").toLowerCase();
+
+  // Strong rule: BuzzFeed Amazon Associates tags
+  if (
+    tag.includes("bf") ||
+    tag.includes("buzzfeed") ||
+    tag.includes("bfheather") ||
+    tag.startsWith("bf")
+  ) {
+    return {
+      publisher: "BuzzFeed",
+      domain: "buzzfeed.com",
+      group: "BuzzFeed",
+      groupKey: "buzzfeed",
+      category: "commerce_media",
+      region: "US",
+      confidence: "high",
+      matchType: "amazon_tag_match",
+      source: "amazon_tag",
+      trafficType: "Editorial Commerce",
+      quality: 75,
+      incrementalityRisk: "Medium"
+    };
+  }
+
+  // Strong rule: BuzzFeed ascsubtag placement signals
+  if (
+    ascsubtag.includes("bf-") ||
+    ascsubtag.includes("bf_sfp") ||
+    ascsubtag.includes("bf-sfp") ||
+    ascsubtag.includes("bf-shp") ||
+    ascsubtag.includes("bf-shopping") ||
+    raw.includes("bf-sfp") ||
+    raw.includes("bf-shp")
+  ) {
+    return {
+      publisher: "BuzzFeed",
+      domain: "buzzfeed.com",
+      group: "BuzzFeed",
+      groupKey: "buzzfeed",
+      category: "commerce_media",
+      region: "US",
+      confidence: "high",
+      matchType: "ascsubtag_match",
+      source: "ascsubtag",
+      trafficType: "Editorial Commerce",
+      quality: 72,
+      incrementalityRisk: "Medium"
+    };
+  }
+
   const fields = [
     params.aff,
     params.publisher,
@@ -194,13 +255,7 @@ function detectPublisherFromParams(params, rawUrl) {
     rawUrl
   ]
     .filter(Boolean)
-    .map((v) => {
-      try {
-        return decodeURIComponent(String(v)).toLowerCase();
-      } catch {
-        return String(v).toLowerCase();
-      }
-    })
+    .map((v) => safeDecode(v).toLowerCase())
     .join(" ");
 
   if (
@@ -304,7 +359,10 @@ function detectPublisherFromParams(params, rawUrl) {
     };
   }
 
-  if (params.cj_publishercid || String(params.utm_source || "").toLowerCase().includes("cj-affiliate")) {
+  if (
+    params.cj_publishercid ||
+    String(params.utm_source || "").toLowerCase().includes("cj-affiliate")
+  ) {
     return {
       publisher: params.cj_publishercid
         ? `CJ Publisher ID ${params.cj_publishercid}`
@@ -378,8 +436,7 @@ function detectAmazonLayer(params, host) {
     linkCode === "tr1" ||
     linkCode === "ur2";
 
-  const hasClassicAssociateSignal =
-    hasTag || hasAny(params, ["camp", "creative"]);
+  const hasClassicAssociateSignal = hasTag || hasAny(params, ["camp", "creative"]);
 
   if (hasAttribution) {
     return {
@@ -572,17 +629,9 @@ function detectSignals(params, network, publisherInfo, paidLayer) {
       "aff_user_id"
     ]),
 
-    hasCouponOrDealPublisher: [
-      "coupon_site",
-      "cashback",
-      "deal_site"
-    ].includes(category),
+    hasCouponOrDealPublisher: ["coupon_site", "cashback", "deal_site"].includes(category),
 
-    hasEditorialPublisher: [
-      "review_site",
-      "commerce_media",
-      "b2b_review"
-    ].includes(category),
+    hasEditorialPublisher: ["review_site", "commerce_media", "b2b_review"].includes(category),
 
     hasCJPublisherId: !!params.cj_publishercid,
     hasRakutenPublisherId: !!params.ransiteid || !!params.raneaid || !!params.rktevent
@@ -595,7 +644,7 @@ function analyzeLink(inputUrl) {
   if (!parsed) {
     return {
       ok: false,
-      version: "BrandShuo Analyze v2.9.5 Safe Publisher Adapter",
+      version: "BrandShuo Analyze v2.9.6 BuzzFeed Amazon Tag Fix",
       error: "Invalid URL",
       input: inputUrl
     };
@@ -657,7 +706,7 @@ function analyzeLink(inputUrl) {
 
   return {
     ok: true,
-    version: "BrandShuo Analyze v2.9.5 Safe Publisher Adapter",
+    version: "BrandShuo Analyze v2.9.6 BuzzFeed Amazon Tag Fix",
 
     input: rawUrl,
     normalizedUrl: parsed.href,
@@ -745,7 +794,7 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({
       ok: false,
-      version: "BrandShuo Analyze v2.9.5 Safe Publisher Adapter",
+      version: "BrandShuo Analyze v2.9.6 BuzzFeed Amazon Tag Fix",
       error: err.message || "Server error"
     });
   }
