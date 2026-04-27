@@ -1,5 +1,35 @@
-const { detectPublisherByUrl } = require("../lib/detect-publisher");
+const publisherDB = require("../lib/publisher-database");
+const detectPublisherAdapter = require("../lib/detect-publisher");
 const { detectPublisherByAmazonTag } = require("../lib/amazon-tag-publisher-map");
+
+function detectPublisherByUrl(url) {
+  try {
+    if (
+      detectPublisherAdapter &&
+      typeof detectPublisherAdapter.detectPublisherByUrl === "function"
+    ) {
+      return detectPublisherAdapter.detectPublisherByUrl(url);
+    }
+
+    if (
+      publisherDB &&
+      typeof publisherDB.detectPublisherByUrl === "function"
+    ) {
+      return publisherDB.detectPublisherByUrl(url);
+    }
+
+    if (
+      publisherDB &&
+      typeof publisherDB.detectPublisherUniversal === "function"
+    ) {
+      return publisherDB.detectPublisherUniversal({ url });
+    }
+
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
 
 function safeUrl(input) {
   try {
@@ -159,11 +189,42 @@ function detectPublisherFromParams(params, rawUrl) {
     params.raneaid,
     params.ransiteid,
     params.cj_publishercid,
+    params.ascsubtag,
+    params.tag,
     rawUrl
   ]
     .filter(Boolean)
-    .map((v) => decodeURIComponent(String(v)).toLowerCase())
+    .map((v) => {
+      try {
+        return decodeURIComponent(String(v)).toLowerCase();
+      } catch {
+        return String(v).toLowerCase();
+      }
+    })
     .join(" ");
+
+  if (
+    fields.includes("buzzfeed") ||
+    fields.includes("bf-sfp") ||
+    fields.includes("bf-shp") ||
+    fields.includes("bf-shopping") ||
+    fields.includes("bfheather")
+  ) {
+    return {
+      publisher: "BuzzFeed",
+      domain: "buzzfeed.com",
+      group: "BuzzFeed",
+      groupKey: "buzzfeed",
+      category: "commerce_media",
+      region: "US",
+      confidence: "medium",
+      matchType: "amazon_tag_or_ascsubtag_match",
+      source: "amazon_tag_or_ascsubtag",
+      trafficType: "Editorial Commerce",
+      quality: 72,
+      incrementalityRisk: "Medium"
+    };
+  }
 
   if (
     fields.includes("future us") ||
@@ -534,7 +595,7 @@ function analyzeLink(inputUrl) {
   if (!parsed) {
     return {
       ok: false,
-      version: "BrandShuo Analyze v2.9.4 Samsung Rakuten Future US Fix",
+      version: "BrandShuo Analyze v2.9.5 Safe Publisher Adapter",
       error: "Invalid URL",
       input: inputUrl
     };
@@ -596,7 +657,7 @@ function analyzeLink(inputUrl) {
 
   return {
     ok: true,
-    version: "BrandShuo Analyze v2.9.4 Samsung Rakuten Future US Fix",
+    version: "BrandShuo Analyze v2.9.5 Safe Publisher Adapter",
 
     input: rawUrl,
     normalizedUrl: parsed.href,
@@ -684,7 +745,7 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({
       ok: false,
-      version: "BrandShuo Analyze v2.9.4 Samsung Rakuten Future US Fix",
+      version: "BrandShuo Analyze v2.9.5 Safe Publisher Adapter",
       error: err.message || "Server error"
     });
   }
