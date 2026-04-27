@@ -57,7 +57,6 @@ function safeUrl(input) {
 
 function getParams(u) {
   const params = {};
-
   if (!u) return params;
 
   for (const [k, v] of u.searchParams.entries()) {
@@ -72,6 +71,39 @@ function hasAny(params, keys) {
     const key = k.toLowerCase();
     return params[key] !== undefined && params[key] !== null && params[key] !== "";
   });
+}
+
+function normalizePublisherInfo(info) {
+  if (!info) return null;
+
+  return {
+    publisher: info.publisher || info.name || "Affiliate Source",
+    domain: info.domain || "",
+    group: info.group || info.media_group || "Unidentified Affiliate Source",
+    groupKey: info.groupKey || info.group_key || "unidentified_affiliate",
+    category: info.category || info.type || "affiliate_publisher",
+    region: info.region || "unknown",
+    confidence: info.confidence || "low",
+    matchType: info.matchType || info.matched_by || "unknown_match",
+    source: info.source || "publisher_database",
+    trafficType: info.trafficType || info.traffic_type || "Affiliate",
+    commercialIntent: info.commercialIntent || info.intent || "Affiliate / Partner Intent",
+    channelRole: info.channelRole || info.role || "Affiliate / Publisher Attribution",
+    quality: Number(info.quality || info.qualityScore || 50),
+    incrementalityRisk: info.incrementalityRisk || info.risk || "Medium"
+  };
+}
+
+function toTitleCaseBrand(host) {
+  const brandName = String(host || "")
+    .replace(/^www\./, "")
+    .split(".")[0]
+    .replace(/-/g, " ")
+    .trim();
+
+  return brandName
+    ? brandName.charAt(0).toUpperCase() + brandName.slice(1)
+    : "DTC Merchant";
 }
 
 function detectPlatform(host) {
@@ -89,7 +121,11 @@ function detectPlatform(host) {
   if (host.includes("lowes.")) return "Lowe's";
   if (host.includes("wayfair.")) return "Wayfair";
 
-  return "Unknown Merchant";
+  // 新增 Retail / DTC Merchant
+  if (host.includes("newegg.")) return "Newegg";
+  if (host.includes("casabrews.")) return "Casabrews";
+
+  return toTitleCaseBrand(host);
 }
 
 function detectNetwork(params, rawUrl, host) {
@@ -119,7 +155,11 @@ function detectNetwork(params, rawUrl, host) {
     return "CJ Affiliate";
   }
 
-  if (hasAny(params, ["ranmid", "ransiteid", "raneaid"]) || params.rktevent) {
+  if (
+    hasAny(params, ["ranmid", "ransiteid", "raneaid", "affid", "affname", "asubid"]) ||
+    params.rktevent ||
+    url.includes("afc-ran-com")
+  ) {
     return "Rakuten";
   }
 
@@ -151,7 +191,7 @@ function detectNetwork(params, rawUrl, host) {
     return "Sub-affiliate / Publisher Tracking";
   }
 
-  if (hasAny(params, ["afftrack", "affid", "affiliate_id", "publisherid"])) {
+  if (hasAny(params, ["afftrack", "affiliate_id", "publisherid"])) {
     return "Affiliate Tracking";
   }
 
@@ -179,67 +219,18 @@ function detectPaidLayer(params) {
 }
 
 function detectPublisherFromParams(params, rawUrl) {
-  const tag = String(params.tag || "").toLowerCase();
-  const ascsubtag = safeDecode(params.ascsubtag || "").toLowerCase();
-  const raw = safeDecode(rawUrl || "").toLowerCase();
-
-  // Strong rule: BuzzFeed Amazon Associates tags
-  if (
-    tag.includes("bf") ||
-    tag.includes("buzzfeed") ||
-    tag.includes("bfheather") ||
-    tag.startsWith("bf")
-  ) {
-    return {
-      publisher: "BuzzFeed",
-      domain: "buzzfeed.com",
-      group: "BuzzFeed",
-      groupKey: "buzzfeed",
-      category: "commerce_media",
-      region: "US",
-      confidence: "high",
-      matchType: "amazon_tag_match",
-      source: "amazon_tag",
-      trafficType: "Editorial Commerce",
-      quality: 75,
-      incrementalityRisk: "Medium"
-    };
-  }
-
-  // Strong rule: BuzzFeed ascsubtag placement signals
-  if (
-    ascsubtag.includes("bf-") ||
-    ascsubtag.includes("bf_sfp") ||
-    ascsubtag.includes("bf-sfp") ||
-    ascsubtag.includes("bf-shp") ||
-    ascsubtag.includes("bf-shopping") ||
-    raw.includes("bf-sfp") ||
-    raw.includes("bf-shp")
-  ) {
-    return {
-      publisher: "BuzzFeed",
-      domain: "buzzfeed.com",
-      group: "BuzzFeed",
-      groupKey: "buzzfeed",
-      category: "commerce_media",
-      region: "US",
-      confidence: "high",
-      matchType: "ascsubtag_match",
-      source: "ascsubtag",
-      trafficType: "Editorial Commerce",
-      quality: 72,
-      incrementalityRisk: "Medium"
-    };
-  }
-
   const fields = [
     params.aff,
+    params.affid,
+    params.affname,
     params.publisher,
     params.aff_user_id,
     params.ven1,
     params.sharedid,
     params.subid,
     params.subid1,
+    params.asubid,
+    params.asid,
     params.sourceid,
     params.utm_source,
     params.utm_medium,
@@ -249,6 +240,7 @@ function detectPublisherFromParams(params, rawUrl) {
     params.rktevent,
     params.raneaid,
     params.ransiteid,
+    params.ranmid,
     params.cj_publishercid,
     params.ascsubtag,
     params.tag,
@@ -258,33 +250,11 @@ function detectPublisherFromParams(params, rawUrl) {
     .map((v) => safeDecode(v).toLowerCase())
     .join(" ");
 
+  // Rakuten + Future / Tom's Guide / Newegg 常见链路
   if (
-    fields.includes("buzzfeed") ||
-    fields.includes("bf-sfp") ||
-    fields.includes("bf-shp") ||
-    fields.includes("bf-shopping") ||
-    fields.includes("bfheather")
-  ) {
-    return {
-      publisher: "BuzzFeed",
-      domain: "buzzfeed.com",
-      group: "BuzzFeed",
-      groupKey: "buzzfeed",
-      category: "commerce_media",
-      region: "US",
-      confidence: "medium",
-      matchType: "amazon_tag_or_ascsubtag_match",
-      source: "amazon_tag_or_ascsubtag",
-      trafficType: "Editorial Commerce",
-      quality: 72,
-      incrementalityRisk: "Medium"
-    };
-  }
-
-  if (
-    fields.includes("future us") ||
-    fields.includes("future+us") ||
+    fields.includes("future apac") ||
     fields.includes("future publishing") ||
+    fields.includes("future+apac") ||
     fields.includes("future+publishing") ||
     fields.includes("tomsguide") ||
     fields.includes("tom's guide") ||
@@ -293,18 +263,22 @@ function detectPublisherFromParams(params, rawUrl) {
     fields.includes("laptopmag")
   ) {
     return {
-      publisher: "Future US",
-      domain: "",
-      group: "Future Publishing",
-      groupKey: "future_publishing",
-      category: "review_site",
-      region: "US",
+      publisher: "Future Publishing",
+      domain: "futureplc.com",
+      group: "Future plc",
+      groupKey: "future",
+      category: "commerce_media",
+      region: fields.includes("tomsguide-hk") || fields.includes("future apac")
+        ? "APAC / Global"
+        : "US / UK / Global",
       confidence: "high",
-      matchType: "multi_param_match",
-      source: "utm_or_affiliate_param",
-      trafficType: "Content / Review",
-      quality: 75,
-      incrementalityRisk: "Medium"
+      matchType: "rakuten_future_match",
+      source: "rakuten_param",
+      trafficType: "Editorial Commerce",
+      commercialIntent: "Shopping / Review Intent",
+      channelRole: "Editorial Discovery / Consideration",
+      quality: 82,
+      incrementalityRisk: "Low-Medium"
     };
   }
 
@@ -312,15 +286,17 @@ function detectPublisherFromParams(params, rawUrl) {
     return {
       publisher: "CNET",
       domain: "cnet.com",
-      group: "Red Ventures",
-      groupKey: "red_ventures",
-      category: "review_site",
+      group: "Ziff Davis",
+      groupKey: "ziff_davis",
+      category: "commerce_media",
       region: "US",
       confidence: "high",
       matchType: "param_match",
       source: "aff_param",
-      trafficType: "Content / Review",
-      quality: 75,
+      trafficType: "Editorial Commerce",
+      commercialIntent: "Shopping / Review Intent",
+      channelRole: "Editorial Discovery / Consideration",
+      quality: 78,
       incrementalityRisk: "Medium"
     };
   }
@@ -337,32 +313,14 @@ function detectPublisherFromParams(params, rawUrl) {
       matchType: "param_match",
       source: "aff_param",
       trafficType: "Deal / Coupon",
-      quality: 60,
+      commercialIntent: "Deal Hunting Intent",
+      channelRole: "Promo Discovery / Lower Funnel",
+      quality: 62,
       incrementalityRisk: "High"
     };
   }
 
-  if (fields.includes("hawk")) {
-    return {
-      publisher: "Hawk",
-      domain: "",
-      group: "Affiliate Publisher",
-      groupKey: "hawk",
-      category: "commerce_media",
-      region: "US",
-      confidence: "medium",
-      matchType: "sharedid_match",
-      source: "sharedid_param",
-      trafficType: "Commerce / Affiliate",
-      quality: 65,
-      incrementalityRisk: "Medium"
-    };
-  }
-
-  if (
-    params.cj_publishercid ||
-    String(params.utm_source || "").toLowerCase().includes("cj-affiliate")
-  ) {
+  if (params.cj_publishercid || String(params.utm_source || "").toLowerCase().includes("cj-affiliate")) {
     return {
       publisher: params.cj_publishercid
         ? `CJ Publisher ID ${params.cj_publishercid}`
@@ -376,16 +334,53 @@ function detectPublisherFromParams(params, rawUrl) {
       matchType: "cj_publisher_id",
       source: "cj_param",
       trafficType: "Affiliate",
+      commercialIntent: "Affiliate / Partner Intent",
+      channelRole: "Affiliate Network Layer",
       quality: 55,
       incrementalityRisk: "Medium"
     };
   }
 
-  if (params.ransiteid || params.raneaid || params.rktevent) {
+  // Awin Publisher 兜底
+  if (params.awc || params.sscid || params.sv_campaign_id) {
+    const awinParts = String(params.awc || params.sscid || "").split("_");
+    const publisherId = awinParts[1] || "";
+
     return {
-      publisher: params.ransiteid
-        ? `Rakuten Publisher ID ${params.ransiteid}`
-        : "Rakuten Publisher",
+      publisher: publisherId
+        ? `Awin Publisher ID ${publisherId}`
+        : "Awin Publisher",
+      domain: "",
+      group: "Awin Publisher",
+      groupKey: "awin_publisher",
+      category: "affiliate_publisher",
+      region: "unknown",
+      confidence: "medium",
+      matchType: "awin_publisher_id",
+      source: "awin_param",
+      trafficType: "Affiliate",
+      commercialIntent: "Affiliate / Partner Intent",
+      channelRole: "Affiliate Network Layer",
+      quality: 55,
+      incrementalityRisk: "Medium"
+    };
+  }
+
+  // Rakuten Publisher 兜底
+  if (
+    params.ransiteid ||
+    params.raneaid ||
+    params.rktevent ||
+    params.affid ||
+    params.affname ||
+    params.asubid
+  ) {
+    return {
+      publisher: params.affname
+        ? safeDecode(params.affname)
+        : params.asubid
+          ? `Rakuten Publisher (${safeDecode(params.asubid)})`
+          : `Rakuten Publisher ID ${params.ransiteid || params.raneaid || params.affid || ""}`,
       domain: "",
       group: "Rakuten Publisher",
       groupKey: "rakuten_publisher",
@@ -395,7 +390,74 @@ function detectPublisherFromParams(params, rawUrl) {
       matchType: "rakuten_publisher_id",
       source: "rakuten_param",
       trafficType: "Affiliate",
+      commercialIntent: "Affiliate / Partner Intent",
+      channelRole: "Affiliate Network Layer",
       quality: 55,
+      incrementalityRisk: "Medium"
+    };
+  }
+
+  return null;
+}
+
+function inferPublisherSmart(params, rawUrl) {
+  const tag = String(params.tag || "").toLowerCase();
+  const asc = safeDecode(params.ascsubtag || "").toLowerCase();
+  const raw = safeDecode(rawUrl || "").toLowerCase();
+
+  if (tag || asc) {
+    if (tag.startsWith("bf") || asc.includes("bf-") || raw.includes("buzzfeed")) {
+      return {
+        publisher: "BuzzFeed (Inferred)",
+        domain: "buzzfeed.com",
+        group: "BuzzFeed",
+        groupKey: "buzzfeed",
+        category: "commerce_media",
+        region: "US",
+        confidence: "medium",
+        matchType: "smart_inference",
+        source: "tag_or_ascsubtag_pattern",
+        trafficType: "Editorial Commerce",
+        commercialIntent: "Shopping / Content Commerce Intent",
+        channelRole: "Editorial Commerce / Deal Assist",
+        quality: 70,
+        incrementalityRisk: "Medium"
+      };
+    }
+
+    if (tag.includes("deal") || asc.includes("deal")) {
+      return {
+        publisher: "Deal / Coupon Publisher (Inferred)",
+        domain: "",
+        group: "Unidentified Deal Publisher",
+        groupKey: "unidentified_deal",
+        category: "deal_site",
+        region: "unknown",
+        confidence: "low",
+        matchType: "smart_inference",
+        source: "tag_or_subtag_pattern",
+        trafficType: "Deal / Coupon",
+        commercialIntent: "Deal Hunting Intent",
+        channelRole: "Promo Discovery / Lower Funnel",
+        quality: 58,
+        incrementalityRisk: "High"
+      };
+    }
+
+    return {
+      publisher: "Affiliate Source",
+      domain: "",
+      group: "Unidentified Affiliate Source",
+      groupKey: "unidentified_affiliate",
+      category: "affiliate_publisher",
+      region: "unknown",
+      confidence: "low",
+      matchType: "affiliate_signal_fallback",
+      source: "tag_or_subtag_detected",
+      trafficType: "Affiliate",
+      commercialIntent: "Affiliate / Partner Intent",
+      channelRole: "Affiliate / Publisher Attribution",
+      quality: 50,
       incrementalityRisk: "Medium"
     };
   }
@@ -405,18 +467,20 @@ function detectPublisherFromParams(params, rawUrl) {
 
 function getFallbackPublisherInfo() {
   return {
-    publisher: "Unknown Publisher",
+    publisher: "Affiliate Source",
     domain: "",
-    group: "Unknown / Needs Verification",
-    groupKey: "unknown",
-    category: "unknown",
+    group: "Unidentified Affiliate Source",
+    groupKey: "unidentified_affiliate",
+    category: "affiliate_publisher",
     region: "unknown",
     confidence: "low",
-    matchType: "none",
+    matchType: "fallback",
     source: "fallback",
-    trafficType: "Unknown",
-    quality: 40,
-    incrementalityRisk: "Unknown"
+    trafficType: "Affiliate",
+    commercialIntent: "Affiliate / Partner Intent",
+    channelRole: "Affiliate / Publisher Attribution",
+    quality: 45,
+    incrementalityRisk: "Medium"
   };
 }
 
@@ -486,13 +550,15 @@ function detectAmazonLayer(params, host) {
 }
 
 function detectCommercialIntent(params, network, publisherInfo, paidLayer) {
+  if (publisherInfo?.commercialIntent) return publisherInfo.commercialIntent;
+
   const category = publisherInfo?.category || "unknown";
 
   if (category === "coupon_site") return "Coupon / Checkout Intent";
   if (category === "cashback") return "Cashback / Reward Intent";
   if (category === "deal_site") return "Deal Hunting Intent";
   if (category === "review_site") return "Research / Review Intent";
-  if (category === "commerce_media") return "Shopping / Comparison Intent";
+  if (category === "commerce_media") return "Shopping / Content Commerce Intent";
   if (category === "affiliate_publisher") return "Affiliate / Partner Intent";
   if (category === "creator") return "Creator Recommendation Intent";
   if (category === "sub_affiliate") return "Syndicated Click Intent";
@@ -509,6 +575,8 @@ function detectCommercialIntent(params, network, publisherInfo, paidLayer) {
 }
 
 function detectChannelRole(params, network, publisherInfo, paidLayer) {
+  if (publisherInfo?.channelRole) return publisherInfo.channelRole;
+
   const category = publisherInfo?.category || "unknown";
 
   if (category === "coupon_site") return "Last-click / Checkout Interceptor";
@@ -551,8 +619,17 @@ function detectConfidence(platform, network, publisherInfo, paidLayer) {
 
   if (platform && platform !== "Unknown Merchant") score += 30;
   if (network && network !== "Unknown") score += 30;
-  if (publisherInfo?.publisher && publisherInfo.publisher !== "Unknown Publisher") score += 30;
+  if (
+    publisherInfo?.publisher &&
+    publisherInfo.publisher !== "Unknown Publisher" &&
+    publisherInfo.publisher !== "Affiliate Source"
+  ) {
+    score += 30;
+  }
   if (paidLayer?.hasPaidLayer) score += 10;
+
+  if (publisherInfo?.confidence === "high") return "high";
+  if (publisherInfo?.confidence === "medium" && score >= 50) return "medium";
 
   if (score >= 80) return "high";
   if (score >= 50) return "medium";
@@ -570,7 +647,7 @@ function makePathLabel(platform, network, amazonLayer, publisherInfo, paidLayer)
 
   if (paidLayer?.hasPaidLayer) parts.push("Paid Media");
 
-  if (publisherInfo?.publisher && publisherInfo.publisher !== "Unknown Publisher") {
+  if (publisherInfo?.publisher) {
     parts.push(publisherInfo.publisher);
   }
 
@@ -626,7 +703,8 @@ function detectSignals(params, network, publisherInfo, paidLayer) {
       "ascsubtag",
       "sharedid",
       "sid",
-      "aff_user_id"
+      "aff_user_id",
+      "asubid"
     ]),
 
     hasCouponOrDealPublisher: ["coupon_site", "cashback", "deal_site"].includes(category),
@@ -634,7 +712,7 @@ function detectSignals(params, network, publisherInfo, paidLayer) {
     hasEditorialPublisher: ["review_site", "commerce_media", "b2b_review"].includes(category),
 
     hasCJPublisherId: !!params.cj_publishercid,
-    hasRakutenPublisherId: !!params.ransiteid || !!params.raneaid || !!params.rktevent
+    hasRakutenPublisherId: !!params.ransiteid || !!params.raneaid || !!params.rktevent || !!params.affid
   };
 }
 
@@ -644,7 +722,7 @@ function analyzeLink(inputUrl) {
   if (!parsed) {
     return {
       ok: false,
-      version: "BrandShuo Analyze v2.9.6 BuzzFeed Amazon Tag Fix",
+      version: "BrandShuo Analyze v3.0.1 Newegg Rakuten Future Fix",
       error: "Invalid URL",
       input: inputUrl
     };
@@ -659,11 +737,13 @@ function analyzeLink(inputUrl) {
   const paidLayer = detectPaidLayer(params);
   const amazonLayer = detectAmazonLayer(params, host);
 
-  const publisherInfo =
-    detectPublisherFromParams(params, rawUrl) ||
-    detectPublisherByAmazonTag(params.tag) ||
-    detectPublisherByUrl(rawUrl) ||
-    getFallbackPublisherInfo();
+  const publisherInfo = normalizePublisherInfo(
+    detectPublisherByAmazonTag(params.tag, params.ascsubtag, rawUrl) ||
+      detectPublisherFromParams(params, rawUrl) ||
+      detectPublisherByUrl(rawUrl) ||
+      inferPublisherSmart(params, rawUrl) ||
+      getFallbackPublisherInfo()
+  );
 
   const commercialIntent = detectCommercialIntent(params, network, publisherInfo, paidLayer);
   const channelRole = detectChannelRole(params, network, publisherInfo, paidLayer);
@@ -672,11 +752,11 @@ function analyzeLink(inputUrl) {
   const pathLabel = makePathLabel(platform, network, amazonLayer, publisherInfo, paidLayer);
   const signals = detectSignals(params, network, publisherInfo, paidLayer);
 
-  let finalTrafficType = publisherInfo.trafficType || "Unknown";
+  let finalTrafficType = publisherInfo.trafficType || "Affiliate";
 
   if (paidLayer.hasPaidLayer && network !== "Unknown") {
     finalTrafficType = "Paid Media + Affiliate";
-  } else if (network !== "Unknown" && publisherInfo.publisher !== "Unknown Publisher") {
+  } else if (network !== "Unknown" && publisherInfo.publisher !== "Affiliate Source") {
     finalTrafficType = publisherInfo.trafficType || "Affiliate";
   } else if (network !== "Unknown") {
     finalTrafficType = "Affiliate";
@@ -684,7 +764,7 @@ function analyzeLink(inputUrl) {
     finalTrafficType = "Paid Media";
   }
 
-  let qualityScore = publisherInfo.quality || 40;
+  let qualityScore = publisherInfo.quality || 45;
 
   if (network === "Impact" && platform === "Walmart") {
     qualityScore = Math.max(qualityScore, 60);
@@ -698,6 +778,10 @@ function analyzeLink(inputUrl) {
     qualityScore = Math.max(qualityScore, 55);
   }
 
+  if (network === "Rakuten" && platform === "Newegg") {
+    qualityScore = Math.max(qualityScore, 60);
+  }
+
   if (paidLayer.hasPaidLayer && network !== "Unknown") {
     qualityScore = Math.max(55, qualityScore - 5);
   }
@@ -706,7 +790,7 @@ function analyzeLink(inputUrl) {
 
   return {
     ok: true,
-    version: "BrandShuo Analyze v2.9.6 BuzzFeed Amazon Tag Fix",
+    version: "BrandShuo Analyze v3.0.1 Newegg Rakuten Future Fix",
 
     input: rawUrl,
     normalizedUrl: parsed.href,
@@ -716,11 +800,9 @@ function analyzeLink(inputUrl) {
     merchant: platform,
 
     network,
-
     detection_result: network,
 
     amazon: amazonLayer,
-
     paid: paidLayer,
 
     publisher: {
@@ -732,7 +814,7 @@ function analyzeLink(inputUrl) {
       region: publisherInfo.region,
       confidence: publisherInfo.confidence,
       matchType: publisherInfo.matchType,
-      source: publisherInfo.source || "url_database"
+      source: publisherInfo.source
     },
 
     intelligence: {
@@ -766,9 +848,7 @@ function analyzeLink(inputUrl) {
     },
 
     path: pathLabel.split(" → "),
-
     signals,
-
     params
   };
 }
@@ -794,7 +874,7 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({
       ok: false,
-      version: "BrandShuo Analyze v2.9.6 BuzzFeed Amazon Tag Fix",
+      version: "BrandShuo Analyze v3.0.1 Newegg Rakuten Future Fix",
       error: err.message || "Server error"
     });
   }
