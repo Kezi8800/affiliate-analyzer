@@ -1,0 +1,537 @@
+"use strict";
+
+/**
+ * International Publisher Rules
+ * Regions:
+ * - US / Canada
+ * - UK
+ * - EU
+ * - Japan
+ * - Australia
+ * - Southeast Asia
+ */
+
+const INTERNATIONAL_PUBLISHER_RULES = [
+  /**
+   * US / North America
+   */
+  {
+    publisher: "Slickdeals",
+    region: "US",
+    market: "North America",
+    patterns: ["slickdeals", "slickdeals09", "sd-", "sd_", "slickdeals.net"],
+    type: "Deal Community",
+    subtype: "Deal / Coupon",
+    media_group: "Slickdeals",
+    confidence: "High"
+  },
+  {
+    publisher: "PCMag",
+    region: "US",
+    market: "North America",
+    patterns: ["pcmag", "p00935", "ziffdavis", "zdnet"],
+    type: "Editorial Commerce",
+    subtype: "Tech Review",
+    media_group: "Ziff Davis",
+    confidence: "High"
+  },
+  {
+    publisher: "CNET",
+    region: "US",
+    market: "North America",
+    patterns: ["cnet", "cnetcommerce"],
+    type: "Editorial Commerce",
+    subtype: "Tech Review",
+    media_group: "Red Ventures",
+    confidence: "High"
+  },
+  {
+    publisher: "Tom's Guide",
+    region: "US",
+    market: "North America",
+    patterns: ["tomsguide", "tom's guide", "tomsguide-us"],
+    type: "Editorial Commerce",
+    subtype: "Tech Review / Buying Guide",
+    media_group: "Future",
+    confidence: "High"
+  },
+  {
+    publisher: "TechRadar",
+    region: "Global",
+    market: "Global",
+    patterns: ["techradar", "future__tr", "trdpro"],
+    type: "Editorial Commerce",
+    subtype: "Tech Review / Buying Guide",
+    media_group: "Future",
+    confidence: "High"
+  },
+  {
+    publisher: "Wirecutter",
+    region: "US",
+    market: "North America",
+    patterns: ["wirecutter", "thewirecutter", "nytimes"],
+    type: "Editorial Commerce",
+    subtype: "Review / Buying Guide",
+    media_group: "NYTimes",
+    confidence: "High"
+  },
+  {
+    publisher: "BuzzFeed",
+    region: "US",
+    market: "North America",
+    patterns: ["buzzfeed", "buzz0f", "bf-shp"],
+    type: "Editorial Commerce",
+    subtype: "Shopping Content",
+    media_group: "BuzzFeed",
+    confidence: "High"
+  },
+  {
+    publisher: "RetailMeNot",
+    region: "US",
+    market: "North America",
+    patterns: ["retailmenot", "rmn"],
+    type: "Coupon / Rewards",
+    subtype: "Coupon",
+    media_group: "RetailMeNot",
+    confidence: "High"
+  },
+  {
+    publisher: "Honey",
+    region: "US",
+    market: "North America",
+    patterns: ["joinhoney", "honey"],
+    type: "Coupon / Extension",
+    subtype: "Browser Extension",
+    media_group: "PayPal Honey",
+    confidence: "High"
+  },
+  {
+    publisher: "Rakuten Rewards",
+    region: "US",
+    market: "North America",
+    patterns: ["rakuten", "ebates"],
+    type: "Cashback / Loyalty",
+    subtype: "Cashback",
+    media_group: "Rakuten",
+    confidence: "High"
+  },
+
+  /**
+   * Canada
+   */
+  {
+    publisher: "RedFlagDeals",
+    region: "CA",
+    market: "Canada",
+    patterns: ["redflagdeals", "rfd"],
+    type: "Deal Community",
+    subtype: "Deal / Coupon",
+    media_group: "VerticalScope",
+    confidence: "High"
+  },
+  {
+    publisher: "MobileSyrup",
+    region: "CA",
+    market: "Canada",
+    patterns: ["mobilesyrup"],
+    type: "Editorial Commerce",
+    subtype: "Tech / Mobile Review",
+    media_group: "MobileSyrup",
+    confidence: "High"
+  },
+  {
+    publisher: "Narcity",
+    region: "CA",
+    market: "Canada",
+    patterns: ["narcity"],
+    type: "Lifestyle Media",
+    subtype: "Local / Shopping Content",
+    media_group: "Narcity Media",
+    confidence: "Medium"
+  },
+  {
+    publisher: "The Kit",
+    region: "CA",
+    market: "Canada",
+    patterns: ["thekit", "the-kit"],
+    type: "Editorial Commerce",
+    subtype: "Lifestyle / Beauty Commerce",
+    media_group: "Torstar",
+    confidence: "Medium"
+  },
+
+  /**
+   * UK
+   */
+  {
+    publisher: "Which?",
+    region: "UK",
+    market: "United Kingdom",
+    patterns: ["which.co.uk", "which"],
+    type: "Editorial Commerce",
+    subtype: "Consumer Review",
+    media_group: "Which?",
+    confidence: "High"
+  },
+  {
+    publisher: "Expert Reviews",
+    region: "UK",
+    market: "United Kingdom",
+    patterns: ["expertreviews", "expert reviews"],
+    type: "Editorial Commerce",
+    subtype: "Product Review",
+    media_group: "Hearst UK",
+    confidence: "High"
+  },
+  {
+    publisher: "T3",
+    region: "UK",
+    market: "United Kingdom",
+    patterns: ["t3.com", "t3"],
+    type: "Editorial Commerce",
+    subtype: "Tech / Lifestyle Review",
+    media_group: "Future",
+    confidence: "High"
+  },
+  {
+    publisher: "The Independent",
+    region: "UK",
+    market: "United Kingdom",
+    patterns: ["independent", "indybest"],
+    type: "Editorial Commerce",
+    subtype: "Shopping Guide",
+    media_group: "Independent Digital News & Media",
+    confidence: "High"
+  },
+  {
+    publisher: "Daily Mail",
+    region: "UK",
+    market: "United Kingdom",
+    patterns: ["dailymail", "mailonline", "mail online"],
+    type: "Editorial Commerce",
+    subtype: "Commerce Content",
+    media_group: "DMG Media",
+    confidence: "Medium"
+  },
+  {
+    publisher: "The Sun",
+    region: "UK",
+    market: "United Kingdom",
+    patterns: ["thesun", "the sun"],
+    type: "Editorial Commerce",
+    subtype: "Shopping / Deals",
+    media_group: "News UK",
+    confidence: "Medium"
+  },
+  {
+    publisher: "Mirror",
+    region: "UK",
+    market: "United Kingdom",
+    patterns: ["mirror.co.uk", "daily mirror"],
+    type: "Editorial Commerce",
+    subtype: "Shopping / Deals",
+    media_group: "Reach plc",
+    confidence: "Medium"
+  },
+
+  /**
+   * EU
+   */
+  {
+    publisher: "Idealo",
+    region: "DE",
+    market: "Europe",
+    patterns: ["idealo", "idealo.de", "idealo.co.uk"],
+    type: "Price Comparison",
+    subtype: "Shopping Comparison",
+    media_group: "Idealo",
+    confidence: "High"
+  },
+  {
+    publisher: "Mydealz",
+    region: "DE",
+    market: "Europe",
+    patterns: ["mydealz", "mydealz.de"],
+    type: "Deal Community",
+    subtype: "Deal / Coupon",
+    media_group: "Pepper",
+    confidence: "High"
+  },
+  {
+    publisher: "Dealabs",
+    region: "FR",
+    market: "Europe",
+    patterns: ["dealabs", "dealabs.com"],
+    type: "Deal Community",
+    subtype: "Deal / Coupon",
+    media_group: "Pepper",
+    confidence: "High"
+  },
+  {
+    publisher: "Chollometro",
+    region: "ES",
+    market: "Europe",
+    patterns: ["chollometro", "chollometro.com"],
+    type: "Deal Community",
+    subtype: "Deal / Coupon",
+    media_group: "Pepper",
+    confidence: "High"
+  },
+  {
+    publisher: "Pepper",
+    region: "EU",
+    market: "Europe",
+    patterns: ["pepper.com", "pepper"],
+    type: "Deal Community",
+    subtype: "Deal / Coupon",
+    media_group: "Pepper",
+    confidence: "Medium"
+  },
+  {
+    publisher: "Computer Bild",
+    region: "DE",
+    market: "Europe",
+    patterns: ["computerbild", "computer bild"],
+    type: "Editorial Commerce",
+    subtype: "Tech Review",
+    media_group: "Axel Springer",
+    confidence: "High"
+  },
+  {
+    publisher: "Chip",
+    region: "DE",
+    market: "Europe",
+    patterns: ["chip.de", "chip"],
+    type: "Editorial Commerce",
+    subtype: "Tech Review",
+    media_group: "BurdaForward",
+    confidence: "Medium"
+  },
+
+  /**
+   * Japan
+   */
+  {
+    publisher: "Kakaku.com",
+    region: "JP",
+    market: "Japan",
+    patterns: ["kakaku", "kakaku.com", "価格.com"],
+    type: "Price Comparison",
+    subtype: "Shopping Comparison",
+    media_group: "Kakaku.com",
+    confidence: "High"
+  },
+  {
+    publisher: "MyNavi",
+    region: "JP",
+    market: "Japan",
+    patterns: ["mynavi", "my navi", "マイナビ"],
+    type: "Editorial Commerce",
+    subtype: "Review / Buying Guide",
+    media_group: "Mynavi",
+    confidence: "High"
+  },
+  {
+    publisher: "Impress Watch",
+    region: "JP",
+    market: "Japan",
+    patterns: ["impress watch", "watch.impress", "impress.co.jp"],
+    type: "Editorial Commerce",
+    subtype: "Tech / Product News",
+    media_group: "Impress",
+    confidence: "High"
+  },
+  {
+    publisher: "ITmedia",
+    region: "JP",
+    market: "Japan",
+    patterns: ["itmedia", "itmedia.co.jp"],
+    type: "Editorial Commerce",
+    subtype: "Tech Media",
+    media_group: "ITmedia",
+    confidence: "High"
+  },
+  {
+    publisher: "Gizmodo Japan",
+    region: "JP",
+    market: "Japan",
+    patterns: ["gizmodo.jp", "gizmodo japan"],
+    type: "Editorial Commerce",
+    subtype: "Tech / Lifestyle Media",
+    media_group: "Mediagene",
+    confidence: "High"
+  },
+  {
+    publisher: "Lifehacker Japan",
+    region: "JP",
+    market: "Japan",
+    patterns: ["lifehacker.jp", "lifehacker japan"],
+    type: "Editorial Commerce",
+    subtype: "Lifestyle / Productivity",
+    media_group: "Mediagene",
+    confidence: "Medium"
+  },
+
+  /**
+   * Australia
+   */
+  {
+    publisher: "Finder AU",
+    region: "AU",
+    market: "Australia",
+    patterns: ["finder.com.au", "finder au"],
+    type: "Comparison / Editorial Commerce",
+    subtype: "Buying Guide",
+    media_group: "Finder",
+    confidence: "High"
+  },
+  {
+    publisher: "Canstar Blue",
+    region: "AU",
+    market: "Australia",
+    patterns: ["canstarblue", "canstar blue"],
+    type: "Comparison / Review",
+    subtype: "Consumer Review",
+    media_group: "Canstar",
+    confidence: "High"
+  },
+  {
+    publisher: "ProductReview.com.au",
+    region: "AU",
+    market: "Australia",
+    patterns: ["productreview.com.au", "productreview"],
+    type: "Review Platform",
+    subtype: "User Review",
+    media_group: "ProductReview",
+    confidence: "High"
+  },
+  {
+    publisher: "News.com.au",
+    region: "AU",
+    market: "Australia",
+    patterns: ["news.com.au", "news au"],
+    type: "Editorial Commerce",
+    subtype: "Shopping / Deals",
+    media_group: "News Corp Australia",
+    confidence: "Medium"
+  },
+  {
+    publisher: "7NEWS",
+    region: "AU",
+    market: "Australia",
+    patterns: ["7news", "7news.com.au"],
+    type: "Editorial Commerce",
+    subtype: "Shopping / Deals",
+    media_group: "Seven West Media",
+    confidence: "Medium"
+  },
+
+  /**
+   * Southeast Asia
+   */
+  {
+    publisher: "SoyaCincau",
+    region: "MY",
+    market: "Southeast Asia",
+    patterns: ["soyacincau"],
+    type: "Editorial Commerce",
+    subtype: "Tech / Mobile Review",
+    media_group: "SoyaCincau",
+    confidence: "Medium"
+  },
+  {
+    publisher: "HardwareZone",
+    region: "SG",
+    market: "Southeast Asia",
+    patterns: ["hardwarezone", "hwz"],
+    type: "Editorial Commerce",
+    subtype: "Tech Review",
+    media_group: "SPH Media",
+    confidence: "High"
+  },
+  {
+    publisher: "Mothership",
+    region: "SG",
+    market: "Southeast Asia",
+    patterns: ["mothership.sg", "mothership"],
+    type: "Lifestyle Media",
+    subtype: "Local / Shopping Content",
+    media_group: "Mothership",
+    confidence: "Medium"
+  },
+  {
+    publisher: "Tech in Asia",
+    region: "SEA",
+    market: "Southeast Asia",
+    patterns: ["techinasia", "tech in asia"],
+    type: "Tech Media",
+    subtype: "Startup / Tech Media",
+    media_group: "Tech in Asia",
+    confidence: "Medium"
+  }
+];
+
+function normalize(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim();
+}
+
+function matchInternationalPublisher(input = "") {
+  const haystack = normalize(input);
+
+  if (!haystack) return null;
+
+  for (const rule of INTERNATIONAL_PUBLISHER_RULES) {
+    if (rule.patterns.some(pattern => haystack.includes(normalize(pattern)))) {
+      return {
+        publisher: rule.publisher,
+        region: rule.region,
+        market: rule.market,
+        type: rule.type,
+        subtype: rule.subtype,
+        media_group: rule.media_group,
+        confidence: rule.confidence || "Medium",
+        matched_by: "international_publisher_rules",
+        matched_pattern: rule.patterns.find(pattern => haystack.includes(normalize(pattern))) || null
+      };
+    }
+  }
+
+  return null;
+}
+
+function matchInternationalPublisherFromUrl(urlObj, params = {}) {
+  const parts = [
+    urlObj?.hostname,
+    urlObj?.pathname,
+    urlObj?.search,
+    params.utm_source,
+    params.utm_medium,
+    params.utm_campaign,
+    params.utm_content,
+    params.utm_term,
+    params.aff,
+    params.affname,
+    params.publisher,
+    params.publisherid,
+    params.source,
+    params.ref,
+    params.tag,
+    params.ascsubtag,
+    params.sharedId,
+    params.subId1,
+    params.subId2,
+    params.subId3
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return matchInternationalPublisher(parts);
+}
+
+module.exports = {
+  INTERNATIONAL_PUBLISHER_RULES,
+  matchInternationalPublisher,
+  matchInternationalPublisherFromUrl
+};
