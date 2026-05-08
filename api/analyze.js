@@ -94,6 +94,23 @@ function normalizePublisherInfo(info) {
   };
 }
 
+function buildPublisherLabel(publisher, group) {
+  const p = String(publisher || "").trim();
+  const g = String(group || "").trim();
+
+  if (
+    p &&
+    g &&
+    p.toLowerCase() !== g.toLowerCase() &&
+    !g.toLowerCase().includes("unidentified") &&
+    !g.toLowerCase().includes("affiliate ecosystem")
+  ) {
+    return `${p}（${g}）`;
+  }
+
+  return p || "Affiliate Source";
+}
+
 function toTitleCaseBrand(host) {
   const brandName = String(host || "")
     .replace(/^www\./, "")
@@ -120,8 +137,6 @@ function detectPlatform(host) {
   if (host.includes("homedepot.")) return "The Home Depot";
   if (host.includes("lowes.")) return "Lowe's";
   if (host.includes("wayfair.")) return "Wayfair";
-
-  // 新增 Retail / DTC Merchant
   if (host.includes("newegg.")) return "Newegg";
   if (host.includes("casabrews.")) return "Casabrews";
 
@@ -250,34 +265,114 @@ function detectPublisherFromParams(params, rawUrl) {
     .map((v) => safeDecode(v).toLowerCase())
     .join(" ");
 
-  // Rakuten + Future / Tom's Guide / Newegg 常见链路
+  // Future Publishing media brands — specific publisher first
+  if (
+    fields.includes("techradar") ||
+    fields.includes("fttr-techradar") ||
+    fields.includes("cx-future-tr") ||
+    fields.includes("future__tr")
+  ) {
+    return {
+      publisher: "TechRadar",
+      domain: "techradar.com",
+      group: "Future Publishing",
+      groupKey: "future",
+      category: "commerce_media",
+      region: "US / UK / Global",
+      confidence: "high",
+      matchType: "future_media_match",
+      source: "future_param",
+      trafficType: "SEO / Editorial Commerce",
+      commercialIntent: "Editorial Commerce Intent",
+      channelRole: "Editorial Discovery / Consideration",
+      quality: 84,
+      incrementalityRisk: "Low"
+    };
+  }
+
+  if (
+    fields.includes("tomsguide") ||
+    fields.includes("tom's guide") ||
+    fields.includes("tomsguide-us") ||
+    fields.includes("cx-future-tg") ||
+    fields.includes("future__tg")
+  ) {
+    return {
+      publisher: "Tom's Guide",
+      domain: "tomsguide.com",
+      group: "Future Publishing",
+      groupKey: "future",
+      category: "commerce_media",
+      region: "US / UK / Global",
+      confidence: "high",
+      matchType: "future_media_match",
+      source: "future_param",
+      trafficType: "SEO / Editorial Commerce",
+      commercialIntent: "Editorial Commerce Intent",
+      channelRole: "Editorial Discovery / Consideration",
+      quality: 84,
+      incrementalityRisk: "Low"
+    };
+  }
+
+  if (fields.includes("laptopmag")) {
+    return {
+      publisher: "Laptop Mag",
+      domain: "laptopmag.com",
+      group: "Future Publishing",
+      groupKey: "future",
+      category: "commerce_media",
+      region: "US / UK / Global",
+      confidence: "high",
+      matchType: "future_media_match",
+      source: "future_param",
+      trafficType: "SEO / Editorial Commerce",
+      commercialIntent: "Editorial Commerce Intent",
+      channelRole: "Editorial Discovery / Consideration",
+      quality: 84,
+      incrementalityRisk: "Low"
+    };
+  }
+
+  if (fields.includes("pcgamer")) {
+    return {
+      publisher: "PC Gamer",
+      domain: "pcgamer.com",
+      group: "Future Publishing",
+      groupKey: "future",
+      category: "commerce_media",
+      region: "US / UK / Global",
+      confidence: "high",
+      matchType: "future_media_match",
+      source: "future_param",
+      trafficType: "SEO / Editorial Commerce",
+      commercialIntent: "Editorial Commerce Intent",
+      channelRole: "Editorial Discovery / Consideration",
+      quality: 84,
+      incrementalityRisk: "Low"
+    };
+  }
+
   if (
     fields.includes("future apac") ||
     fields.includes("future publishing") ||
     fields.includes("future+apac") ||
-    fields.includes("future+publishing") ||
-    fields.includes("tomsguide") ||
-    fields.includes("tom's guide") ||
-    fields.includes("techradar") ||
-    fields.includes("pcgamer") ||
-    fields.includes("laptopmag")
+    fields.includes("future+publishing")
   ) {
     return {
       publisher: "Future Publishing",
       domain: "futureplc.com",
-      group: "Future plc",
+      group: "Future Publishing",
       groupKey: "future",
       category: "commerce_media",
-      region: fields.includes("tomsguide-hk") || fields.includes("future apac")
-        ? "APAC / Global"
-        : "US / UK / Global",
-      confidence: "high",
-      matchType: "rakuten_future_match",
-      source: "rakuten_param",
+      region: fields.includes("future apac") ? "APAC / Global" : "US / UK / Global",
+      confidence: "medium",
+      matchType: "future_group_match",
+      source: "future_param",
       trafficType: "Editorial Commerce",
-      commercialIntent: "Shopping / Review Intent",
+      commercialIntent: "Editorial Commerce Intent",
       channelRole: "Editorial Discovery / Consideration",
-      quality: 82,
+      quality: 78,
       incrementalityRisk: "Low-Medium"
     };
   }
@@ -286,8 +381,8 @@ function detectPublisherFromParams(params, rawUrl) {
     return {
       publisher: "CNET",
       domain: "cnet.com",
-      group: "Ziff Davis",
-      groupKey: "ziff_davis",
+      group: "Red Ventures",
+      groupKey: "red_ventures",
       category: "commerce_media",
       region: "US",
       confidence: "high",
@@ -341,7 +436,6 @@ function detectPublisherFromParams(params, rawUrl) {
     };
   }
 
-  // Awin Publisher 兜底
   if (params.awc || params.sscid || params.sv_campaign_id) {
     const awinParts = String(params.awc || params.sscid || "").split("_");
     const publisherId = awinParts[1] || "";
@@ -366,7 +460,6 @@ function detectPublisherFromParams(params, rawUrl) {
     };
   }
 
-  // Rakuten Publisher 兜底
   if (
     params.ransiteid ||
     params.raneaid ||
@@ -644,13 +737,10 @@ function getQualityLabel(score) {
 
 function makePathLabel(platform, network, amazonLayer, publisherInfo, paidLayer) {
   const parts = [];
+  const publisherLabel = buildPublisherLabel(publisherInfo?.publisher, publisherInfo?.group);
 
   if (paidLayer?.hasPaidLayer) parts.push("Paid Media");
-
-  if (publisherInfo?.publisher) {
-    parts.push(publisherInfo.publisher);
-  }
-
+  if (publisherLabel) parts.push(publisherLabel);
   if (network && network !== "Unknown") parts.push(network);
 
   if (amazonLayer?.layer && amazonLayer.layer !== network) {
@@ -658,7 +748,6 @@ function makePathLabel(platform, network, amazonLayer, publisherInfo, paidLayer)
   }
 
   if (platform && platform !== "Unknown Merchant") parts.push(platform);
-
   if (!parts.length) return "Unknown Link Path";
 
   return parts.join(" → ");
@@ -690,11 +779,8 @@ function detectSignals(params, network, publisherInfo, paidLayer) {
         "wmlspartner",
         "sourceid"
       ]),
-
     hasAmazonTag: !!params.tag,
-
     hasPaidClickId: paidLayer?.hasPaidLayer || false,
-
     hasSubId: hasAny(params, [
       "subid",
       "subid1",
@@ -706,11 +792,8 @@ function detectSignals(params, network, publisherInfo, paidLayer) {
       "aff_user_id",
       "asubid"
     ]),
-
     hasCouponOrDealPublisher: ["coupon_site", "cashback", "deal_site"].includes(category),
-
     hasEditorialPublisher: ["review_site", "commerce_media", "b2b_review"].includes(category),
-
     hasCJPublisherId: !!params.cj_publishercid,
     hasRakutenPublisherId: !!params.ransiteid || !!params.raneaid || !!params.rktevent || !!params.affid
   };
@@ -722,7 +805,7 @@ function analyzeLink(inputUrl) {
   if (!parsed) {
     return {
       ok: false,
-      version: "BrandShuo Analyze v3.0.1 Newegg Rakuten Future Fix",
+      version: "BrandShuo Analyze v3.0.2 Publisher Group Fix",
       error: "Invalid URL",
       input: inputUrl
     };
@@ -745,6 +828,7 @@ function analyzeLink(inputUrl) {
       getFallbackPublisherInfo()
   );
 
+  const publisherLabel = buildPublisherLabel(publisherInfo.publisher, publisherInfo.group);
   const commercialIntent = detectCommercialIntent(params, network, publisherInfo, paidLayer);
   const channelRole = detectChannelRole(params, network, publisherInfo, paidLayer);
   const incrementalityRisk = detectRisk(publisherInfo, network, paidLayer);
@@ -766,31 +850,18 @@ function analyzeLink(inputUrl) {
 
   let qualityScore = publisherInfo.quality || 45;
 
-  if (network === "Impact" && platform === "Walmart") {
-    qualityScore = Math.max(qualityScore, 60);
-  }
-
-  if (network === "CJ Affiliate" && platform === "LG") {
-    qualityScore = Math.max(qualityScore, 55);
-  }
-
-  if (network === "Rakuten" && platform === "Samsung") {
-    qualityScore = Math.max(qualityScore, 55);
-  }
-
-  if (network === "Rakuten" && platform === "Newegg") {
-    qualityScore = Math.max(qualityScore, 60);
-  }
-
-  if (paidLayer.hasPaidLayer && network !== "Unknown") {
-    qualityScore = Math.max(55, qualityScore - 5);
-  }
+  if (network === "Impact" && platform === "Walmart") qualityScore = Math.max(qualityScore, 60);
+  if (network === "CJ Affiliate" && platform === "LG") qualityScore = Math.max(qualityScore, 55);
+  if (network === "Rakuten" && platform === "Samsung") qualityScore = Math.max(qualityScore, 55);
+  if (network === "Rakuten" && platform === "Newegg") qualityScore = Math.max(qualityScore, 60);
+  if (paidLayer.hasPaidLayer && network !== "Unknown") qualityScore = Math.max(55, qualityScore - 5);
 
   const qualityLabel = getQualityLabel(qualityScore);
+  const pathNodes = pathLabel.split(" → ");
 
   return {
     ok: true,
-    version: "BrandShuo Analyze v3.0.1 Newegg Rakuten Future Fix",
+    version: "BrandShuo Analyze v3.0.2 Publisher Group Fix",
 
     input: rawUrl,
     normalizedUrl: parsed.href,
@@ -807,6 +878,7 @@ function analyzeLink(inputUrl) {
 
     publisher: {
       name: publisherInfo.publisher,
+      label: publisherLabel,
       domain: publisherInfo.domain,
       group: publisherInfo.group,
       groupKey: publisherInfo.groupKey,
@@ -816,6 +888,10 @@ function analyzeLink(inputUrl) {
       matchType: publisherInfo.matchType,
       source: publisherInfo.source
     },
+
+    publisher_label: publisherLabel,
+    media_group: publisherInfo.group,
+    publisher_group: publisherInfo.group,
 
     intelligence: {
       pathLabel,
@@ -828,12 +904,37 @@ function analyzeLink(inputUrl) {
       confidence
     },
 
-    publisher_name: publisherInfo.publisher,
-    publisher_group: publisherInfo.group,
+    path_classification: {
+      path_label: pathLabel,
+      path_nodes: pathNodes,
+      publisher_label: publisherLabel,
+      publisher: publisherInfo.publisher,
+      media_group: publisherInfo.group,
+      channel_role: channelRole
+    },
+
+    publisher_intelligence: {
+      publisher: publisherInfo.publisher,
+      publisher_label: publisherLabel,
+      type: publisherInfo.category,
+      subtype: finalTrafficType,
+      media_group: publisherInfo.group,
+      parent_media_group: publisherInfo.group,
+      confidence: publisherInfo.confidence,
+      matched_by: publisherInfo.matchType,
+      matched_pattern: publisherInfo.source
+    },
+
+    publisher_name: publisherLabel,
+    publisher_raw_name: publisherInfo.publisher,
     publisher_category: publisherInfo.category,
     traffic_type: finalTrafficType,
+    commercial_intent: commercialIntent,
+    channel_role: channelRole,
+    traffic_quality: qualityScore,
     quality_score: qualityScore,
     quality_label: qualityLabel,
+    incrementality_risk: incrementalityRisk,
     risk: incrementalityRisk,
     confidence,
 
@@ -842,12 +943,13 @@ function analyzeLink(inputUrl) {
       merchant: platform,
       network,
       publisher: publisherInfo.publisher,
+      publisher_label: publisherLabel,
       publisher_group: publisherInfo.group,
       amazon_layer: amazonLayer?.layer || "--",
       domain: host
     },
 
-    path: pathLabel.split(" → "),
+    path: pathNodes,
     signals,
     params
   };
@@ -874,7 +976,7 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({
       ok: false,
-      version: "BrandShuo Analyze v3.0.1 Newegg Rakuten Future Fix",
+      version: "BrandShuo Analyze v3.0.2 Publisher Group Fix",
       error: err.message || "Server error"
     });
   }
