@@ -51,6 +51,7 @@ function detectMerchant(hostname = "") {
   const host = cleanHostname(hostname);
 
   if (host.includes("amazon.")) return "Amazon";
+  if (host.includes("saatva.")) return "Saatva";
   if (host.includes("walmart.")) return "Walmart";
   if (host.includes("target.")) return "Target";
   if (host.includes("bestbuy.")) return "Best Buy";
@@ -61,7 +62,7 @@ function detectMerchant(hostname = "") {
   if (host.includes("homedepot.")) return "Home Depot";
   if (host.includes("lowes.")) return "Lowe's";
   if (host.includes("wayfair.")) return "Wayfair";
-  if (host.includes("interiordefine.")) return "Interiordefine";
+  if (host.includes("interiordefine.")) return "Interior Define";
 
   return toTitleCaseBrand(host);
 }
@@ -80,6 +81,183 @@ function isPartnerizePepperjam(params = {}) {
     utmSource.includes("partnerize") ||
     utmSource.includes("pepperjam")
   );
+}
+
+function isFuturePublishing(params = {}) {
+  const utmSource = String(getParam(params, "utm_source")).toLowerCase();
+  const utmCampaign = String(getParam(params, "utm_campaign")).toLowerCase();
+
+  return Boolean(
+    utmSource.includes("futurepublishing") ||
+    utmSource.includes("future publishing") ||
+    utmSource === "future" ||
+    utmCampaign.includes("futurepublishing") ||
+    utmCampaign.includes("future publishing")
+  );
+}
+
+function buildFuturePublishingResult(inputUrl, urlObj, params) {
+  const hostname = cleanHostname(urlObj.hostname || "");
+  const merchant = detectMerchant(hostname);
+  const publisher = "Future Publishing";
+  const network = "Affiliate Network";
+  const platform = "DTC";
+
+  const pathClassification = {
+    path_label: `${publisher} → ${network} → ${merchant}`,
+    path_nodes: [publisher, network, merchant],
+    publisher_label: publisher,
+    publisher,
+    media_group: "Future Publishing",
+    channel_role: "Content / Consideration Driver"
+  };
+
+  return {
+    ok: true,
+    error: false,
+    version: "BrandShuo Analyze v4.2 Future Publishing Production",
+    engine: "BrandShuo Attribution Intelligence Engine",
+
+    analyzed_url: inputUrl,
+    input: inputUrl,
+    normalizedUrl: urlObj.href,
+    final_url: urlObj.href,
+    domain: hostname,
+    hostname,
+
+    platform,
+    merchant,
+    merchant_type: "Retail / DTC",
+
+    network,
+    detection_result: network,
+    attribution_system: network,
+    likely_type: network,
+
+    publisher,
+    publisher_label: publisher,
+    publisher_name: publisher,
+    publisher_raw_name: publisher,
+    publisher_group: "Future Publishing",
+    media_group: "Future Publishing",
+    publisher_type: "editorial_affiliate",
+    publisher_category: "commerce_media",
+
+    primary_claimer: publisher,
+
+    traffic_type: "Editorial Commerce",
+    commercial_intent: "Product Research Intent",
+    channel_role: "Content / Consideration Driver",
+
+    traffic_quality: 84,
+    quality_score: 84,
+    quality_label: "High",
+
+    incrementality_risk: "Low-Medium",
+    risk: "Low-Medium",
+    conflict_risk: "Low-Medium",
+
+    confidence: "high",
+
+    publisher_intelligence: {
+      publisher,
+      publisher_label: publisher,
+      type: "commerce_media",
+      subtype: "Editorial Commerce",
+      media_group: "Future Publishing",
+      parent_media_group: "Future Publishing",
+      confidence: "high",
+      matched_by: "utm_source_futurepublishing",
+      matched_pattern: "utm_source=futurepublishing",
+      network,
+      network_type: "Affiliate Network",
+      network_confidence: "medium"
+    },
+
+    intelligence: {
+      pathLabel: pathClassification.path_label,
+      trafficType: "Editorial Commerce",
+      commercialIntent: "Product Research Intent",
+      channelRole: "Content / Consideration Driver",
+      qualityScore: 84,
+      qualityLabel: "High",
+      incrementalityRisk: "Low-Medium",
+      confidence: "high"
+    },
+
+    path_classification: pathClassification,
+    path: pathClassification.path_nodes,
+
+    tracking_layer: {
+      platform,
+      merchant,
+      network,
+      publisher,
+      publisher_label: publisher,
+      publisher_group: "Future Publishing",
+      amazon_layer: "--",
+      domain: hostname
+    },
+
+    attribution_layer: {
+      merchant,
+      platform,
+      network,
+      attribution_system: network,
+      publisher,
+      publisher_label: publisher,
+      publisher_group: "Future Publishing",
+      media_group: "Future Publishing",
+      publisher_type: "editorial_affiliate",
+      traffic_type: "Editorial Commerce",
+      commercial_intent: "Product Research Intent",
+      traffic_quality: 84,
+      incrementality_risk: "Low-Medium",
+      channel_role: "Content / Consideration Driver",
+      confidence: "high",
+      path_classification: pathClassification,
+      publisher_intelligence: {
+        publisher,
+        publisher_label: publisher,
+        type: "commerce_media",
+        subtype: "Editorial Commerce",
+        media_group: "Future Publishing",
+        parent_media_group: "Future Publishing",
+        confidence: "high",
+        matched_by: "utm_source_futurepublishing",
+        network
+      }
+    },
+
+    signals: {
+      hasAffiliateTag: true,
+      hasAmazonTag: false,
+      hasPaidClickId: false,
+      hasSubId: Boolean(getParam(params, "click_id")),
+      hasCouponOrDealPublisher: false,
+      hasEditorialPublisher: true,
+      hasPartnerizePublisherId: false
+    },
+
+    evidence: {
+      params,
+      click_id: getParam(params, "click_id") || null,
+      clickid: getParam(params, "clickid") || null,
+      source: getParam(params, "source") || null,
+      utm_source: getParam(params, "utm_source") || null,
+      utm_medium: getParam(params, "utm_medium") || null,
+      utm_campaign: getParam(params, "utm_campaign") || null,
+      utm_content: getParam(params, "utm_content") || null
+    },
+
+    params,
+
+    raw: {
+      forced_future_publishing: true,
+      publisher,
+      network
+    }
+  };
 }
 
 function buildPartnerizePepperjamResult(inputUrl, urlObj, params) {
@@ -152,19 +330,6 @@ function buildPartnerizePepperjamResult(inputUrl, urlObj, params) {
     conflict_risk: "Medium",
 
     confidence: "high",
-
-    publisher: {
-      name: publisher,
-      label: publisher,
-      domain: "",
-      group: null,
-      groupKey: "partnerize_pepperjam",
-      category: "affiliate_publisher",
-      region: "unknown",
-      confidence: "high",
-      matchType: "partnerize_pepperjam_param",
-      source: "partnerize_pepperjam"
-    },
 
     publisher_intelligence: {
       publisher,
@@ -312,6 +477,12 @@ module.exports = async function handler(req, res) {
     }
 
     const params = getParams(urlObj);
+
+    if (isFuturePublishing(params)) {
+      return res.status(200).json(
+        buildFuturePublishingResult(inputUrl, urlObj, params)
+      );
+    }
 
     if (isPartnerizePepperjam(params)) {
       return res.status(200).json(
