@@ -96,6 +96,207 @@ function isFuturePublishing(params = {}) {
   );
 }
 
+function isAmazonAttributionMaas(params = {}) {
+  const maas = String(getParam(params, "maas")).toLowerCase();
+  const ref = String(getParam(params, "ref_")).toLowerCase();
+  const tag = String(getParam(params, "tag")).toLowerCase();
+
+  return Boolean(
+    getParam(params, "aa_campaignid") ||
+    getParam(params, "aa_adgroupid") ||
+    getParam(params, "aa_creativeid") ||
+    maas.includes("maas") ||
+    ref.includes("aa_maas") ||
+    tag === "maas"
+  );
+}
+
+function buildAmazonAttributionMaasResult(inputUrl, urlObj, params) {
+  const hostname = cleanHostname(urlObj.hostname || "");
+  const merchant = detectMerchant(hostname);
+
+  const publisher = "Brand / Advertiser";
+  const network = "Amazon Attribution";
+  const platform = "PartnerBoost";
+  const layer = "Amazon Attribution / MAAS";
+
+  const pathClassification = {
+    path_label: `${publisher} → ${network} → ${merchant}`,
+    path_nodes: [publisher, network, merchant],
+    publisher_label: publisher,
+    publisher,
+    media_group: null,
+    channel_role: "Traffic Driver"
+  };
+
+  return {
+    ok: true,
+    error: false,
+    version: "BrandShuo Analyze v4.3 Amazon Attribution MAAS Fix",
+    engine: "BrandShuo Attribution Intelligence Engine",
+
+    analyzed_url: inputUrl,
+    input: inputUrl,
+    normalizedUrl: urlObj.href,
+    final_url: urlObj.href,
+    domain: hostname,
+    hostname,
+
+    platform,
+    managed_by: platform,
+
+    merchant,
+    merchant_type: "Marketplace",
+
+    network,
+    detection_result: network,
+    attribution_system: network,
+    attribution_layer: layer,
+    layer,
+    likely_type: layer,
+
+    publisher,
+    publisher_label: publisher,
+    publisher_name: publisher,
+    publisher_raw_name: publisher,
+    publisher_group: null,
+    media_group: null,
+    publisher_type: "advertiser",
+    publisher_category: "advertiser",
+
+    primary_claimer: publisher,
+
+    traffic_type: "Amazon Attribution",
+    commercial_intent: "High",
+    channel_role: "Traffic Driver",
+
+    traffic_quality: 72,
+    quality_score: 72,
+    quality_label: "Good",
+
+    incrementality_risk: "Medium",
+    risk: "Medium",
+    conflict_risk: "Medium",
+
+    confidence: "high",
+
+    publisher_intelligence: {
+      publisher,
+      publisher_label: publisher,
+      type: "advertiser",
+      subtype: "Amazon Attribution",
+      media_group: null,
+      parent_media_group: null,
+      confidence: "high",
+      matched_by: "amazon_attribution_maas_params",
+      matched_pattern: "maas / ref_=aa_maas / tag=maas / aa_campaignid / aa_adgroupid / aa_creativeid",
+      network,
+      network_type: "Marketplace Attribution",
+      network_confidence: "high",
+      platform
+    },
+
+    intelligence: {
+      pathLabel: pathClassification.path_label,
+      trafficType: "Amazon Attribution",
+      commercialIntent: "High",
+      channelRole: "Traffic Driver",
+      qualityScore: 72,
+      qualityLabel: "Good",
+      incrementalityRisk: "Medium",
+      confidence: "high"
+    },
+
+    path_classification: pathClassification,
+    path: pathClassification.path_nodes,
+
+    tracking_layer: {
+      platform,
+      managed_by: platform,
+      merchant,
+      network,
+      attribution_system: network,
+      attribution_layer: layer,
+      layer,
+      publisher,
+      publisher_label: publisher,
+      publisher_group: null,
+      amazon_layer: layer,
+      domain: hostname
+    },
+
+    attribution_layer_detail: {
+      merchant,
+      platform,
+      managed_by: platform,
+      network,
+      attribution_system: network,
+      attribution_layer: layer,
+      layer,
+      publisher,
+      publisher_label: publisher,
+      publisher_group: null,
+      media_group: null,
+      publisher_type: "advertiser",
+      traffic_type: "Amazon Attribution",
+      commercial_intent: "High",
+      traffic_quality: 72,
+      incrementality_risk: "Medium",
+      channel_role: "Traffic Driver",
+      confidence: "high",
+      path_classification: pathClassification,
+      publisher_intelligence: {
+        publisher,
+        publisher_label: publisher,
+        type: "advertiser",
+        subtype: "Amazon Attribution",
+        media_group: null,
+        parent_media_group: null,
+        confidence: "high",
+        matched_by: "amazon_attribution_maas_params",
+        network,
+        platform
+      }
+    },
+
+    signals: {
+      hasAffiliateTag: true,
+      hasAmazonTag: true,
+      hasPaidClickId: false,
+      hasSubId: false,
+      hasCouponOrDealPublisher: false,
+      hasEditorialPublisher: false,
+      hasPartnerizePublisherId: false,
+      hasAmazonAttribution: true,
+      hasMaas: Boolean(getParam(params, "maas")),
+      hasAaCampaignId: Boolean(getParam(params, "aa_campaignid")),
+      hasAaAdgroupId: Boolean(getParam(params, "aa_adgroupid")),
+      hasAaCreativeId: Boolean(getParam(params, "aa_creativeid"))
+    },
+
+    evidence: {
+      params,
+      tag: getParam(params, "tag") || null,
+      ref_: getParam(params, "ref_") || null,
+      maas: getParam(params, "maas") || null,
+      aa_campaignid: getParam(params, "aa_campaignid") || null,
+      aa_adgroupid: getParam(params, "aa_adgroupid") || null,
+      aa_creativeid: getParam(params, "aa_creativeid") || null
+    },
+
+    params,
+
+    raw: {
+      forced_amazon_attribution_maas: true,
+      managed_by: platform,
+      publisher,
+      network,
+      merchant,
+      layer
+    }
+  };
+}
+
 function buildFuturePublishingResult(inputUrl, urlObj, params) {
   const hostname = cleanHostname(urlObj.hostname || "");
   const merchant = detectMerchant(hostname);
@@ -477,6 +678,12 @@ module.exports = async function handler(req, res) {
     }
 
     const params = getParams(urlObj);
+
+    if (isAmazonAttributionMaas(params)) {
+      return res.status(200).json(
+        buildAmazonAttributionMaasResult(inputUrl, urlObj, params)
+      );
+    }
 
     if (isFuturePublishing(params)) {
       return res.status(200).json(
