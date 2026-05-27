@@ -21,7 +21,13 @@ function getParams(urlObj) {
   if (!urlObj || !urlObj.searchParams) return params;
 
   for (const [key, value] of urlObj.searchParams.entries()) {
-    params[String(key).toLowerCase()] = value;
+    const lowerKey = String(key).toLowerCase();
+
+    if (params[lowerKey]) {
+      params[lowerKey] = `${params[lowerKey]} ${value}`;
+    } else {
+      params[lowerKey] = value;
+    }
   }
 
   return params;
@@ -51,6 +57,7 @@ function detectMerchant(hostname = "") {
   const host = cleanHostname(hostname);
 
   if (host.includes("amazon.")) return "Amazon";
+  if (host.includes("casper.")) return "Casper";
   if (host.includes("saatva.")) return "Saatva";
   if (host.includes("walmart.")) return "Walmart";
   if (host.includes("target.")) return "Target";
@@ -65,6 +72,19 @@ function detectMerchant(hostname = "") {
   if (host.includes("interiordefine.")) return "Interior Define";
 
   return toTitleCaseBrand(host);
+}
+
+function isConsumerReports(params = {}) {
+  const joined = Object.keys(params)
+    .map((key) => `${key}=${params[key]}`)
+    .join("&")
+    .toLowerCase();
+
+  return Boolean(
+    joined.includes("consumerreports") ||
+    joined.includes("consumer reports") ||
+    joined.includes("consumer-reports")
+  );
 }
 
 function isPartnerizePepperjam(params = {}) {
@@ -109,6 +129,174 @@ function isAmazonAttributionMaas(params = {}) {
     ref.includes("aa_maas") ||
     tag === "maas"
   );
+}
+
+function buildConsumerReportsResult(inputUrl, urlObj, params) {
+  const hostname = cleanHostname(urlObj.hostname || "");
+  const merchant = detectMerchant(hostname);
+
+  const publisher = "Consumer Reports";
+  const network = "Partnerize";
+  const platform = "Partnerize";
+
+  const pathClassification = {
+    path_label: `${publisher} → ${network} → ${merchant}`,
+    path_nodes: [publisher, network, merchant],
+    publisher_label: publisher,
+    publisher,
+    media_group: "Consumer Reports",
+    channel_role: "Editorial / Review Commerce"
+  };
+
+  return {
+    ok: true,
+    error: false,
+    version: "BrandShuo Analyze v4.4 Consumer Reports Production",
+    engine: "BrandShuo Attribution Intelligence Engine",
+
+    analyzed_url: inputUrl,
+    input: inputUrl,
+    normalizedUrl: urlObj.href,
+    final_url: urlObj.href,
+    domain: hostname,
+    hostname,
+
+    platform,
+    merchant,
+    merchant_type: "Retail / DTC",
+
+    network,
+    detection_result: network,
+    attribution_system: network,
+    attribution_layer: "Partnerize Affiliate Tracking",
+    likely_type: "Editorial Affiliate",
+
+    publisher,
+    publisher_label: publisher,
+    publisher_name: publisher,
+    publisher_raw_name: publisher,
+    publisher_group: "Consumer Reports",
+    media_group: "Consumer Reports",
+    publisher_type: "editorial_review",
+    publisher_category: "commerce_media",
+
+    primary_claimer: publisher,
+
+    traffic_type: "Editorial Affiliate",
+    commercial_intent: "Product Research Intent",
+    channel_role: "Editorial / Review Commerce",
+
+    traffic_quality: 86,
+    quality_score: 86,
+    quality_label: "Strong",
+
+    incrementality_risk: "Low-Medium",
+    risk: "Low-Medium",
+    conflict_risk: "Low-Medium",
+
+    confidence: "high",
+
+    publisher_intelligence: {
+      publisher,
+      publisher_label: publisher,
+      type: "commerce_media",
+      subtype: "Editorial Review",
+      media_group: "Consumer Reports",
+      parent_media_group: "Consumer Reports",
+      confidence: "high",
+      matched_by: "utm_campaign_consumerreports",
+      matched_pattern: "utm_campaign=consumerreports",
+      network,
+      network_type: "Affiliate Network",
+      network_confidence: "high"
+    },
+
+    intelligence: {
+      pathLabel: pathClassification.path_label,
+      trafficType: "Editorial Affiliate",
+      commercialIntent: "Product Research Intent",
+      channelRole: "Editorial / Review Commerce",
+      qualityScore: 86,
+      qualityLabel: "Strong",
+      incrementalityRisk: "Low-Medium",
+      confidence: "high"
+    },
+
+    path_classification: pathClassification,
+    path: pathClassification.path_nodes,
+
+    tracking_layer: {
+      platform,
+      merchant,
+      network,
+      publisher,
+      publisher_label: publisher,
+      publisher_group: "Consumer Reports",
+      amazon_layer: "--",
+      domain: hostname
+    },
+
+    attribution_layer_detail: {
+      merchant,
+      platform,
+      network,
+      attribution_system: network,
+      attribution_layer: "Partnerize Affiliate Tracking",
+      publisher,
+      publisher_label: publisher,
+      publisher_group: "Consumer Reports",
+      media_group: "Consumer Reports",
+      publisher_type: "editorial_review",
+      traffic_type: "Editorial Affiliate",
+      commercial_intent: "Product Research Intent",
+      traffic_quality: 86,
+      incrementality_risk: "Low-Medium",
+      channel_role: "Editorial / Review Commerce",
+      confidence: "high",
+      path_classification: pathClassification,
+      publisher_intelligence: {
+        publisher,
+        publisher_label: publisher,
+        type: "commerce_media",
+        subtype: "Editorial Review",
+        media_group: "Consumer Reports",
+        parent_media_group: "Consumer Reports",
+        confidence: "high",
+        matched_by: "utm_campaign_consumerreports",
+        network
+      }
+    },
+
+    signals: {
+      hasAffiliateTag: true,
+      hasAmazonTag: false,
+      hasPaidClickId: false,
+      hasSubId: Boolean(getParam(params, "clickref") || getParam(params, "click_ref")),
+      hasCouponOrDealPublisher: false,
+      hasEditorialPublisher: true,
+      hasPartnerizePublisherId: false
+    },
+
+    evidence: {
+      params,
+      clickref: getParam(params, "clickref") || null,
+      click_ref: getParam(params, "click_ref") || null,
+      utm_source: getParam(params, "utm_source") || null,
+      utm_medium: getParam(params, "utm_medium") || null,
+      utm_campaign: getParam(params, "utm_campaign") || null,
+      utm_term: getParam(params, "utm_term") || null,
+      utm_content: getParam(params, "utm_content") || null
+    },
+
+    params,
+
+    raw: {
+      forced_consumer_reports: true,
+      publisher,
+      network,
+      merchant
+    }
+  };
 }
 
 function buildAmazonAttributionMaasResult(inputUrl, urlObj, params) {
@@ -244,19 +432,7 @@ function buildAmazonAttributionMaasResult(inputUrl, urlObj, params) {
       incrementality_risk: "Medium",
       channel_role: "Traffic Driver",
       confidence: "high",
-      path_classification: pathClassification,
-      publisher_intelligence: {
-        publisher,
-        publisher_label: publisher,
-        type: "advertiser",
-        subtype: "Amazon Attribution",
-        media_group: null,
-        parent_media_group: null,
-        confidence: "high",
-        matched_by: "amazon_attribution_maas_params",
-        network,
-        platform
-      }
+      path_classification: pathClassification
     },
 
     signals: {
@@ -416,18 +592,7 @@ function buildFuturePublishingResult(inputUrl, urlObj, params) {
       incrementality_risk: "Low-Medium",
       channel_role: "Content / Consideration Driver",
       confidence: "high",
-      path_classification: pathClassification,
-      publisher_intelligence: {
-        publisher,
-        publisher_label: publisher,
-        type: "commerce_media",
-        subtype: "Editorial Commerce",
-        media_group: "Future Publishing",
-        parent_media_group: "Future Publishing",
-        confidence: "high",
-        matched_by: "utm_source_futurepublishing",
-        network
-      }
+      path_classification: pathClassification
     },
 
     signals: {
@@ -588,18 +753,7 @@ function buildPartnerizePepperjamResult(inputUrl, urlObj, params) {
       incrementality_risk: "Medium",
       channel_role: "Affiliate Network Layer",
       confidence: "high",
-      path_classification: pathClassification,
-      publisher_intelligence: {
-        publisher,
-        publisher_label: publisher,
-        type: "affiliate_publisher",
-        subtype: "Affiliate",
-        media_group: null,
-        parent_media_group: null,
-        confidence: "high",
-        matched_by: "partnerize_pepperjam_param",
-        network
-      }
+      path_classification: pathClassification
     },
 
     signals: {
@@ -678,6 +832,12 @@ module.exports = async function handler(req, res) {
     }
 
     const params = getParams(urlObj);
+
+    if (isConsumerReports(params)) {
+      return res.status(200).json(
+        buildConsumerReportsResult(inputUrl, urlObj, params)
+      );
+    }
 
     if (isAmazonAttributionMaas(params)) {
       return res.status(200).json(
