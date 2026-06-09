@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BrandShuo Attribution Checker</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="brand">
+        <span class="logo">BS</span>
+        <div>
+          <h1>Attribution Checker</h1>
+          <span class="badge">by BrandShuo</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Input -->
+    <div class="input-area">
+      <div class="input-row">
+        <input
+          id="url-input"
+          type="text"
+          placeholder="Paste affiliate link here..."
+          autocomplete="off"
+        />
+        <button id="analyze-btn" class="btn-primary">Analyze</button>
+      </div>
+      <div class="quick-actions">
+        <button id="current-page-btn" class="btn-link">🔗 Analyze Current Page</button>
+        <button id="clear-btn" class="btn-link">Clear</button>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" class="loading hidden">
+      <div class="spinner"></div>
+      <span>Analyzing...</span>
+    </div>
+
+    <!-- Error -->
+    <div id="error" class="error hidden"></div>
+
+    <!-- Result -->
+    <div id="result" class="result hidden">
+      <!-- Summary -->
+      <div class="result-header" id="result-header">
+        <div class="path-label" id="path-label">--</div>
+        <div class="meta-row">
+          <span id="meta-platform">Platform: --</span>
+          <span id="meta-network">Network: --</span>
+          <span id="meta-publisher">Publisher: --</span>
+        </div>
+      </div>
+
+      <!-- Risk & Quality -->
+      <div class="score-row">
+        <div class="score-card" id="risk-card">
+          <span class="score-label">Risk</span>
+          <span class="score-value" id="risk-value">--</span>
+        </div>
+        <div class="score-card" id="quality-card">
+          <span class="score-label">Quality</span>
+          <span class="score-value" id="quality-value">--</span>
+        </div>
+        <div class="score-card">
+          <span class="score-label">Confidence</span>
+          <span class="score-value" id="confidence-value">--</span>
+        </div>
+      </div>
+
+      <!-- Details -->
+      <div class="details">
+        <div class="detail-item">
+          <span>Publisher</span>
+          <strong id="detail-publisher">--</strong>
+        </div>
+        <div class="detail-item">
+          <span>Publisher Group</span>
+          <strong id="detail-group">--</strong>
+        </div>
+        <div class="detail-item">
+          <span>Category</span>
+          <strong id="detail-category">--</strong>
+        </div>
+        <div class="detail-item">
+          <span>Traffic Type</span>
+          <strong id="detail-traffic">--</strong>
+        </div>
+        <div class="detail-item">
+          <span>Channel Role</span>
+          <strong id="detail-role">--</strong>
+        </div>
+        <div class="detail-item">
+          <span>Domain</span>
+          <strong id="detail-domain">--</strong>
+        </div>
+      </div>
+
+      <!-- Open full report -->
+      <a id="full-report-link" href="#" target="_blank" class="full-report">
+        Open Full Report on BrandShuo →
+      </a>
+    </div>
+
+    <!-- Empty state -->
+    <div id="empty" class="empty">
+      <div class="empty-icon">↗</div>
+      <p>Paste an affiliate, ad, or publisher URL to decode its attribution path.</p>
+    </div>
+
+    <!-- History -->
+    <div id="history" class="history hidden">
+      <div class="section-title">Recent</div>
+      <div id="history-list"></div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
