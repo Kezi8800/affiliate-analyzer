@@ -16,7 +16,6 @@ const { analyzeLink } = require("../lib/analyze");
 // Lazy-load handlers
 function loadHandler(name) {
   try { return require(`../lib/handlers/${name}`); } catch (e) {
-    console.error(`Handler load error [${name}]:`, e.message);
     return null;
   }
 }
@@ -60,23 +59,19 @@ module.exports = async function handler(req, res) {
   let handlerName;
 
   if (path.startsWith("/publisher/") && path.endsWith("/related")) {
-    handlerName = "publisher/[id]"; // reuse id handler for related
-    const h = getHandler("publisher/related");
-    if (h) {
-      req._routeParams = { id: path.replace("/publisher/", "").replace("/related", "") };
-      return h(req, res);
-    }
+    const h = loadHandler("publisher/related");
+    if (h) return h(req, res);
     return res.status(404).json({ ok: false, error: true, message: "Not found" });
   }
 
   if (path.startsWith("/publisher/")) {
-    const h = getHandler("publisher/[id]");
+    const h = loadHandler("publisher/[id]");
     if (h) return h(req, res);
     return res.status(404).json({ ok: false, error: true, message: "Not found" });
   }
 
   if (path.startsWith("/v1/")) {
-    const h = getHandler("v1/analyze");
+    const h = loadHandler("v1/analyze");
     if (h) return h(req, res);
     return res.status(404).json({ ok: false, error: true, message: "Not found" });
   }
