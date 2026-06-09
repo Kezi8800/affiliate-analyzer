@@ -1,0 +1,547 @@
+<!--
+  BrandShuo Attribution Checker v4.7 Widget
+  Paste into WordPress Elementor HTML Widget
+  Changes: batch paste mode + feedback submission
+-->
+<div id="bsac-v47">
+  <div class="bsac-shell">
+
+    <!-- HERO -->
+    <section class="bsac-hero-card">
+      <div class="bsac-topbar">
+        <div class="bsac-brand">
+          <div class="bsac-logo">BS</div>
+          <div>
+            <div class="bsac-eyebrow">Attribution Intelligence v4.7</div>
+            <h2>BrandShuo Attribution Checker</h2>
+          </div>
+        </div>
+        <div class="bsac-status-pill">
+          <span class="bsac-dot"></span>Live Analyzer
+        </div>
+      </div>
+
+      <p class="bsac-subtitle">
+        Decode affiliate, Amazon, ad, and publisher URLs. Single or batch mode. Identify network, publisher, risk, and incrementality.
+      </p>
+
+      <!-- Mode toggle -->
+      <div class="bsac-mode-toggle">
+        <button class="bsac-mode-btn active" data-mode="single">Single URL</button>
+        <button class="bsac-mode-btn" data-mode="batch">Batch (up to 50)</button>
+      </div>
+
+      <!-- Single URL input -->
+      <div class="bsac-input-card" id="bsac-single-input">
+        <div class="bsac-input-wrap">
+          <span class="bsac-input-icon">↗</span>
+          <input id="bsac-url" type="text" placeholder="Paste an affiliate, Amazon, ad, or publisher URL..." autocomplete="off" />
+        </div>
+        <button id="bsac-detect-btn" type="button">Analyze</button>
+        <button id="bsac-clear-btn" type="button">Clear</button>
+      </div>
+
+      <!-- Batch URL input -->
+      <div class="bsac-input-card bsac-hidden" id="bsac-batch-input">
+        <textarea id="bsac-batch-urls" placeholder="Paste multiple URLs, one per line...&#10;https://www.amazon.com/deals?tag=slickdeals09-20&#10;https://www.awin1.com/cread.php?awinaffid=67890&awinmid=12345&#10;https://example.com/?utm_source=partnerboost&pb=test" rows="4"></textarea>
+        <div class="bsac-batch-actions">
+          <button id="bsac-batch-detect-btn" type="button">Analyze All</button>
+          <span id="bsac-batch-count" class="bsac-batch-count">0 URLs</span>
+        </div>
+      </div>
+
+      <div class="bsac-example-row">
+        <button type="button" data-example="https://www.amazon.com/deals?creative=9325&camp=1789&tag=slickdeals09-20&ascsubtag=test">Amazon Publisher</button>
+        <button type="button" data-example="https://www.walmart.com/ip/11966170?clickid=test&irgwc=1&sourceid=imp_test">Walmart Impact</button>
+        <button type="button" data-example="https://casper.com/?clickref=1110l3QLMRw7&utm_source=partnerize&utm_medium=affiliate&utm_campaign=cnetcommerce">Partnerize Publisher</button>
+        <button type="button" data-example="https://www.awin1.com/cread.php?awinaffid=67890&awinmid=12345">Awin Publisher</button>
+      </div>
+    </section>
+
+    <!-- Single Result -->
+    <section id="bsac-result" class="bsac-result-card bsac-hidden">
+      <div class="bsac-summary-card">
+        <div class="bsac-summary-main">
+          <div class="bsac-eyebrow">Detection Result</div>
+          <h3 id="bsac-path-title">Unknown Link Path</h3>
+          <div class="bsac-meta-row">
+            <span id="bsac-meta-platform">Platform: --</span>
+            <span id="bsac-meta-network">Network: --</span>
+            <span id="bsac-meta-publisher">Publisher: --</span>
+            <span id="bsac-meta-category">Category: --</span>
+          </div>
+        </div>
+        <div class="bsac-summary-side">
+          <div id="bsac-risk-pill" class="bsac-risk-pill">Risk: Unknown</div>
+          <div id="bsac-confidence-pill" class="bsac-confidence-pill">Confidence: --</div>
+        </div>
+      </div>
+
+      <div class="bsac-flow" id="bsac-flow"></div>
+
+      <div class="bsac-insight-grid">
+        <div class="bsac-insight-card"><span>Publisher</span><strong id="bsac-publisher-main">--</strong></div>
+        <div class="bsac-insight-card"><span>Channel Role</span><strong id="bsac-role">--</strong></div>
+        <div class="bsac-insight-card"><span>Traffic Type</span><strong id="bsac-traffic">--</strong></div>
+        <div class="bsac-insight-card bsac-score-card">
+          <div class="bsac-score-head">
+            <div><span>Quality Score</span><strong id="bsac-quality">--</strong></div>
+            <div id="bsac-quality-label" class="bsac-quality-label">--</div>
+          </div>
+          <div class="bsac-meter"><i id="bsac-meter-bar"></i></div>
+        </div>
+      </div>
+
+      <div class="bsac-detail-grid">
+        <div class="bsac-detail-card">
+          <h4>Publisher Details</h4>
+          <dl>
+            <div><dt>Name</dt><dd id="bsac-publisher">--</dd></div>
+            <div><dt>Group</dt><dd id="bsac-group">--</dd></div>
+            <div><dt>Category</dt><dd id="bsac-category">--</dd></div>
+            <div><dt>Intent</dt><dd id="bsac-intent">--</dd></div>
+          </dl>
+        </div>
+        <div class="bsac-detail-card">
+          <h4>Tracking Layer</h4>
+          <dl>
+            <div><dt>Platform</dt><dd id="bsac-platform">--</dd></div>
+            <div><dt>Network</dt><dd id="bsac-network">--</dd></div>
+            <div><dt>Attribution Layer</dt><dd id="bsac-amazon">--</dd></div>
+            <div><dt>Domain</dt><dd id="bsac-domain">--</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <div class="bsac-signal-card">
+        <h4>Signal Flags</h4>
+        <div id="bsac-signals" class="bsac-signals"></div>
+      </div>
+
+      <!-- Feedback: shown when publisher is Unknown -->
+      <div id="bsac-feedback" class="bsac-feedback-card bsac-hidden">
+        <h4>📝 Know this publisher?</h4>
+        <p>Help grow the database — submit the correct publisher info.</p>
+        <div class="bsac-feedback-form">
+          <input id="bsac-fb-publisher" placeholder="Publisher name (e.g. NerdWallet)" />
+          <input id="bsac-fb-group" placeholder="Media group (e.g. Red Ventures)" />
+          <input id="bsac-fb-network" placeholder="Affiliate network (e.g. Impact)" />
+          <button id="bsac-fb-submit" type="button">Submit Publisher Info</button>
+        </div>
+        <div id="bsac-fb-thanks" class="bsac-hidden bsac-fb-thanks">✅ Thanks! Your submission helps everyone.</div>
+      </div>
+    </section>
+
+    <!-- Batch Results Table -->
+    <section id="bsac-batch-result" class="bsac-result-card bsac-hidden">
+      <div class="bsac-batch-header">
+        <h3>Batch Results</h3>
+        <div class="bsac-batch-stats" id="bsac-batch-stats"></div>
+      </div>
+      <div class="bsac-batch-table-wrap">
+        <table class="bsac-batch-table">
+          <thead>
+            <tr>
+              <th>URL</th>
+              <th>Network</th>
+              <th>Publisher</th>
+              <th>Quality</th>
+              <th>Risk</th>
+            </tr>
+          </thead>
+          <tbody id="bsac-batch-tbody"></tbody>
+        </table>
+      </div>
+      <div class="bsac-batch-export">
+        <button id="bsac-export-csv" type="button">Export CSV</button>
+      </div>
+    </section>
+
+    <!-- Empty state -->
+    <section id="bsac-empty" class="bsac-empty-card">
+      <div class="bsac-empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M16 3h5v5"></path><path d="M8 21H3v-5"></path>
+          <path d="M21 3l-7 7"></path><path d="M3 21l7-7"></path><path d="M14 14l7 7"></path><path d="M3 3l7 7"></path>
+        </svg>
+      </div>
+      <h3>Paste a link to reveal the attribution path</h3>
+      <p>Supports Amazon, Walmart, eBay, Impact, CJ, Awin, Rakuten, PartnerBoost, Levanta, Partnerize, ShareASale, and more. Try batch mode for multiple URLs.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  const API_URL = "https://tools.brandshuo.com/api/analyze";
+  const BATCH_URL = "https://tools.brandshuo.com/api/batch";
+  const FEEDBACK_URL = "https://tools.brandshuo.com/api/feedback";
+
+  const $ = (id) => document.getElementById(id);
+  let currentMode = "single";
+  let lastResult = null;
+
+  function text(id, value) { const el = $(id); if (el) el.textContent = value || "--"; }
+
+  function clean(value) {
+    if (value === null || value === undefined) return "";
+    if (Array.isArray(value)) return value.map(clean).filter(Boolean).join(" → ");
+    if (typeof value === "object") return clean(value.publisher) || clean(value.name) || clean(value.label) || "";
+    const v = String(value).trim();
+    if (!v || v.toLowerCase() === "unknown" || v === "--" || v === "[object Object]") return "";
+    return v;
+  }
+
+  function escapeHtml(value) {
+    return String(value || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  // Mode toggle
+  document.querySelectorAll(".bsac-mode-btn").forEach(btn => {
+    btn.addEventListener("click", function(){
+      document.querySelectorAll(".bsac-mode-btn").forEach(b => b.classList.remove("active"));
+      this.classList.add("active");
+      currentMode = this.dataset.mode;
+      if (currentMode === "single") {
+        $("bsac-single-input").classList.remove("bsac-hidden");
+        $("bsac-batch-input").classList.add("bsac-hidden");
+      } else {
+        $("bsac-single-input").classList.add("bsac-hidden");
+        $("bsac-batch-input").classList.remove("bsac-hidden");
+      }
+    });
+  });
+
+  // Batch URL counter
+  $("bsac-batch-urls").addEventListener("input", function(){
+    const lines = this.value.trim().split("\n").filter(l => l.trim());
+    $("bsac-batch-count").textContent = lines.length + " URLs";
+  });
+
+  // Single analyze
+  $("bsac-detect-btn").addEventListener("click", analyzeSingle);
+  $("bsac-url").addEventListener("keydown", function(e){ if (e.key === "Enter") analyzeSingle(); });
+
+  // Batch analyze
+  $("bsac-batch-detect-btn").addEventListener("click", analyzeBatch);
+
+  // Clear
+  $("bsac-clear-btn").addEventListener("click", clearAll);
+
+  // Example buttons
+  document.querySelectorAll("#bsac-v47 [data-example]").forEach(btn => {
+    btn.addEventListener("click", function(){
+      $("bsac-url").value = this.getAttribute("data-example");
+      analyzeSingle();
+    });
+  });
+
+  // Feedback submit
+  $("bsac-fb-submit").addEventListener("click", submitFeedback);
+
+  async function analyzeSingle() {
+    const url = $("bsac-url").value.trim();
+    if (!url) return;
+    setLoading(true);
+    try {
+      const res = await fetch(API_URL, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({url}) });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.message || "API error");
+      renderSingle(data);
+    } catch(err) {
+      $("bsac-path-title").textContent = "Analysis failed";
+      $("bsac-meta-platform").textContent = "Error: " + err.message;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function analyzeBatch() {
+    const lines = $("bsac-batch-urls").value.trim().split("\n").filter(l => l.trim());
+    if (lines.length === 0) return;
+    if (lines.length > 50) {
+      alert("Maximum 50 URLs per batch. You pasted " + lines.length + ".");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(BATCH_URL, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({urls: lines}) });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.message || "Batch error");
+      renderBatch(data);
+    } catch(err) {
+      $("bsac-batch-stats").textContent = "Error: " + err.message;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function setLoading(isLoading) {
+    $("bsac-detect-btn").disabled = isLoading;
+    $("bsac-detect-btn").textContent = isLoading ? "Analyzing..." : "Analyze";
+    $("bsac-batch-detect-btn").disabled = isLoading;
+    $("bsac-batch-detect-btn").textContent = isLoading ? "Analyzing..." : "Analyze All";
+  }
+
+  function renderSingle(data) {
+    lastResult = data;
+    $("bsac-result").classList.remove("bsac-hidden");
+    $("bsac-empty").classList.add("bsac-hidden");
+    $("bsac-batch-result").classList.add("bsac-hidden");
+
+    text("bsac-path-title", data.path_classification?.path_label || `${data.publisher} → ${data.network} → ${data.hostname}`);
+    text("bsac-meta-platform", "Platform: " + (data.platform || "--"));
+    text("bsac-meta-network", "Network: " + (data.network || "--"));
+    text("bsac-meta-publisher", "Publisher: " + (clean(data.publisher_label) || data.publisher || "--"));
+    text("bsac-meta-category", "Category: " + (data.publisher_type || "--"));
+
+    const risk = data.incrementality_risk || data.risk || "Unknown";
+    const riskPill = $("bsac-risk-pill");
+    riskPill.textContent = "Risk: " + risk;
+    riskPill.className = "bsac-risk-pill " + ((String(risk).toLowerCase().includes("high")) ? "bsac-risk-high" : (String(risk).toLowerCase().includes("medium") ? "bsac-risk-medium" : ""));
+
+    text("bsac-confidence-pill", "Confidence: " + (data.confidence || "--"));
+
+    // Flow
+    const flow = $("bsac-flow");
+    const nodes = data.path_classification?.path_nodes || [data.publisher, data.network, data.hostname].filter(Boolean);
+    flow.innerHTML = nodes.map((n,i) => `<div class="bsac-flow-node"><span>${["Publisher","Network","Merchant","Layer"][i]||"Step"}</span><strong>${escapeHtml(String(n||"--"))}</strong></div>`).join("");
+
+    text("bsac-publisher-main", clean(data.publisher_label) || data.publisher || "--");
+    text("bsac-role", data.channel_role || "--");
+    text("bsac-traffic", data.traffic_type || "--");
+    const quality = Number(data.quality_score || data.traffic_quality || 0);
+    text("bsac-quality", quality ? quality + "/100" : "--");
+    text("bsac-quality-label", quality >= 80 ? "Strong" : quality >= 65 ? "Good" : quality >= 50 ? "Moderate" : quality > 0 ? "Weak" : "--");
+    $("bsac-meter-bar").style.width = Math.max(0, Math.min(100, quality)) + "%";
+
+    text("bsac-publisher", clean(data.publisher_label) || data.publisher || "--");
+    text("bsac-group", data.publisher_group || data.media_group || "--");
+    text("bsac-category", data.publisher_type || data.publisher_category || "--");
+    text("bsac-intent", data.commercial_intent || "--");
+    text("bsac-platform", data.platform || "--");
+    text("bsac-network", data.network || "--");
+    text("bsac-amazon", data.attribution_system || data.likely_type || "--");
+    text("bsac-domain", data.hostname || "--");
+
+    // Show/hide feedback form
+    const isUnknown = !data.publisher || data.publisher === "Unknown Publisher" || data.publisher.toLowerCase().includes("unknown");
+    if (isUnknown) {
+      $("bsac-feedback").classList.remove("bsac-hidden");
+      $("bsac-fb-publisher").value = "";
+      $("bsac-fb-group").value = "";
+      $("bsac-fb-network").value = data.network || "";
+    } else {
+      $("bsac-feedback").classList.add("bsac-hidden");
+    }
+  }
+
+  function renderBatch(data) {
+    $("bsac-batch-result").classList.remove("bsac-hidden");
+    $("bsac-empty").classList.add("bsac-hidden");
+    $("bsac-result").classList.add("bsac-hidden");
+
+    $("bsac-batch-stats").innerHTML = `<span>${data.stats.total} URLs</span> · <span class="bsac-stat-ok">${data.stats.success} detected</span> · <span>${data.stats.duration_ms}ms</span>`;
+
+    const tbody = $("bsac-batch-tbody");
+    tbody.innerHTML = data.results.map(r => {
+      const riskClass = String(r.incrementality_risk||"").toLowerCase().includes("high") ? "color:#dc2626" : String(r.incrementality_risk||"").toLowerCase().includes("medium") ? "color:#d97706" : "";
+      return `<tr>
+        <td class="bsac-td-url" title="${escapeHtml(r.url)}">${truncateUrl(r.url, 50)}</td>
+        <td>${escapeHtml(r.network||"--")}</td>
+        <td>${escapeHtml(r.publisher||"--")}</td>
+        <td>${r.quality_score||"--"}</td>
+        <td style="${riskClass}">${r.incrementality_risk||"--"}</td>
+      </tr>`;
+    }).join("");
+
+    // Store for export
+    lastResult = data;
+  }
+
+  function truncateUrl(url, max) {
+    const clean = url.replace(/^https?:\/\//,"").replace(/^www\./,"");
+    return clean.length <= max ? clean : clean.slice(0, max) + "...";
+  }
+
+  async function submitFeedback() {
+    const publisher_name = $("bsac-fb-publisher").value.trim();
+    const publisher_group = $("bsac-fb-group").value.trim();
+    const network = $("bsac-fb-network").value.trim();
+
+    if (!publisher_name && !network) {
+      alert("Please enter at least the publisher name or network.");
+      return;
+    }
+
+    try {
+      const res = await fetch(FEEDBACK_URL, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          url: lastResult?.analyzed_url || $("bsac-url").value.trim(),
+          publisher_name,
+          publisher_group,
+          network
+        })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        $("bsac-fb-thanks").classList.remove("bsac-hidden");
+        $("bsac-fb-submit").disabled = true;
+        setTimeout(() => { $("bsac-fb-thanks").classList.add("bsac-hidden"); $("bsac-fb-submit").disabled = false; }, 3000);
+      }
+    } catch(err) {
+      alert("Failed to submit feedback. Please try again.");
+    }
+  }
+
+  function clearAll() {
+    $("bsac-url").value = "";
+    $("bsac-batch-urls").value = "";
+    $("bsac-batch-count").textContent = "0 URLs";
+    $("bsac-result").classList.add("bsac-hidden");
+    $("bsac-batch-result").classList.add("bsac-hidden");
+    $("bsac-feedback").classList.add("bsac-hidden");
+    $("bsac-empty").classList.remove("bsac-hidden");
+  }
+
+  // Export CSV
+  $("bsac-export-csv").addEventListener("click", function(){
+    if (!lastResult?.results) return;
+    const csv = ["URL,Network,Publisher,Quality,Confidence"];
+    lastResult.results.forEach(r => {
+      csv.push([r.url, r.network, r.publisher, r.quality_score, r.confidence].map(v => '"' + String(v||"").replace(/"/g,'""') + '"').join(","));
+    });
+    const blob = new Blob([csv.join("\n")], {type:"text/csv"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "brandshuo-attribution-batch.csv";
+    a.click();
+  });
+})();
+</script>
+
+<style>
+  #bsac-v47 {
+    --bg: #f6f8fb; --card: #ffffff; --soft: #f8fbff; --text: #111827; --muted: #64748b;
+    --line: rgba(148,163,184,.28); --brand: #2563eb; --brand2: #7c3aed; --green: #16a34a;
+    --amber: #d97706; --red: #dc2626; --shadow: 0 24px 70px rgba(15,23,42,.10);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--text);
+  }
+  #bsac-v47 * { box-sizing: border-box; }
+  .bsac-shell { width: min(1180px, 100%); margin: 0 auto; padding: 28px 14px; background: radial-gradient(circle at 10% 0%, rgba(37,99,235,.12), transparent 30%), radial-gradient(circle at 90% 5%, rgba(124,58,237,.10), transparent 28%), linear-gradient(180deg, #fff, var(--bg)); border-radius: 30px; }
+  .bsac-hero-card, .bsac-result-card, .bsac-empty-card { background: rgba(255,255,255,.92); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: 28px; backdrop-filter: blur(16px); }
+  .bsac-hero-card { padding: 26px; }
+  .bsac-topbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+  .bsac-brand { display: flex; align-items: center; gap: 14px; }
+  .bsac-logo { width: 50px; height: 50px; border-radius: 16px; display: grid; place-items: center; font-weight: 900; color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand2)); box-shadow: 0 14px 30px rgba(37,99,235,.25); }
+  .bsac-eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--brand); font-weight: 850; }
+  .bsac-hero-card h2 { margin: 0; font-size: clamp(24px, 2.3vw, 32px); letter-spacing: -.04em; color: #2563eb; }
+  .bsac-status-pill, .bsac-risk-pill, .bsac-confidence-pill, .bsac-batch-count { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: #fff; padding: 9px 12px; border-radius: 999px; color: var(--muted); font-size: 13px; font-weight: 800; white-space: nowrap; }
+  .bsac-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--green); box-shadow: 0 0 0 6px rgba(22,163,74,.12); }
+  .bsac-subtitle { max-width: 780px; margin: 18px 0; color: var(--muted); font-size: 15px; line-height: 1.7; }
+
+  /* Mode toggle */
+  .bsac-mode-toggle { display: flex; gap: 6px; margin-bottom: 12px; }
+  .bsac-mode-btn { padding: 8px 16px; border: 1px solid var(--line); background: #fff; border-radius: 999px; font-size: 12px; font-weight: 700; cursor: pointer; color: var(--muted); transition: all .15s; }
+  .bsac-mode-btn.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+
+  /* Input */
+  .bsac-input-card { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; padding: 10px; border: 1px solid var(--line); background: rgba(248,250,252,.85); border-radius: 22px; margin-bottom: 12px; }
+  .bsac-input-wrap { position: relative; }
+  .bsac-input-icon { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--brand); font-weight: 900; }
+  #bsac-url { width: 100%; height: 48px; border: 1px solid transparent; outline: none; border-radius: 16px; background: #fff; padding: 0 16px 0 40px; font-size: 14px; }
+  #bsac-url:focus, #bsac-batch-urls:focus { border-color: rgba(37,99,235,.45); box-shadow: 0 0 0 4px rgba(37,99,235,.08); }
+  #bsac-detect-btn, #bsac-clear-btn, #bsac-batch-detect-btn, #bsac-export-csv { cursor: pointer; transition: transform .18s ease; }
+  #bsac-detect-btn, #bsac-clear-btn, #bsac-batch-detect-btn { height: 48px; border: 0; border-radius: 16px; padding: 0 18px; font-weight: 850; }
+  #bsac-detect-btn, #bsac-batch-detect-btn { color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand2)); box-shadow: 0 15px 30px rgba(37,99,235,.22); }
+  #bsac-clear-btn { color: #334155; background: #e2e8f0; }
+  #bsac-detect-btn:hover, #bsac-batch-detect-btn:hover { transform: translateY(-1px); }
+
+  /* Batch input */
+  #bsac-batch-urls { width: 100%; border: 1px solid var(--line); outline: none; border-radius: 16px; background: #fff; padding: 12px 16px; font-size: 13px; font-family: monospace; resize: vertical; }
+  .bsac-batch-actions { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+  .bsac-example-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .bsac-example-row button { border: 1px solid var(--line); background: #fff; color: var(--muted); border-radius: 999px; padding: 8px 11px; font-size: 12px; font-weight: 800; cursor: pointer; transition: transform .18s; }
+  .bsac-example-row button:hover { transform: translateY(-1px); }
+
+  .bsac-hidden { display: none !important; }
+
+  /* Result card */
+  .bsac-result-card { margin-top: 16px; padding: 22px; }
+  .bsac-summary-card { display: grid; grid-template-columns: 1fr auto; gap: 18px; padding: 22px; border: 1px solid var(--line); background: radial-gradient(circle at 0% 0%, rgba(37,99,235,.10), transparent 32%), linear-gradient(180deg, #fff, #f8fbff); border-radius: 24px; }
+  .bsac-summary-card h3 { margin: 0; font-size: clamp(26px, 3vw, 42px); letter-spacing: -.05em; }
+  .bsac-meta-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .bsac-meta-row span { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 11px; font-size: 12px; font-weight: 800; color: #334155; }
+  .bsac-summary-side { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+
+  .bsac-flow { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin: 16px 0 20px; }
+  .bsac-flow-node { position: relative; border: 1px solid var(--line); background: #fff; border-radius: 20px; padding: 14px; }
+  .bsac-flow-node:after { content: "→"; position: absolute; right: -9px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; border-radius: 999px; background: #eff6ff; color: var(--brand); display: grid; place-items: center; font-weight: 900; z-index: 2; }
+  .bsac-flow-node:last-child:after { display: none; }
+  .bsac-flow-node span { color: var(--muted); font-size: 12px; font-weight: 850; text-transform: uppercase; }
+  .bsac-flow-node strong { display: block; margin-top: 8px; font-size: 15px; }
+
+  .bsac-insight-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+  .bsac-insight-card { border: 1px solid var(--line); background: #fff; border-radius: 20px; padding: 16px; min-height: 120px; }
+  .bsac-insight-card span { color: var(--muted); font-size: 12px; font-weight: 850; text-transform: uppercase; }
+  .bsac-insight-card strong { display: block; margin-top: 8px; font-size: 20px; }
+  .bsac-score-head { display: flex; justify-content: space-between; align-items: flex-start; }
+  .bsac-quality-label { font-size: 12px; color: var(--brand); background: #eff6ff; border: 1px solid rgba(37,99,235,.14); border-radius: 999px; padding: 6px 9px; font-weight: 850; }
+  .bsac-meter { height: 8px; border-radius: 999px; background: #e2e8f0; overflow: hidden; margin-top: 18px; }
+  .bsac-meter i { display: block; width: 0%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brand), var(--green)); transition: width .35s; }
+
+  .bsac-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; margin-top: 12px; }
+  .bsac-detail-card { border: 1px solid var(--line); background: #fff; border-radius: 20px; padding: 16px; }
+  .bsac-detail-card h4 { margin: 0 0 14px; font-size: 17px; }
+  .bsac-detail-card dl { margin: 0; display: grid; gap: 12px; }
+  .bsac-detail-card div { display: grid; grid-template-columns: 120px 1fr; gap: 12px; }
+  .bsac-detail-card dt { color: var(--muted); font-size: 12px; font-weight: 850; text-transform: uppercase; }
+  .bsac-detail-card dd { margin: 0; color: #0f172a; font-weight: 800; word-break: break-word; }
+
+  .bsac-signal-card { margin-top: 12px; border: 1px solid var(--line); background: #fff; border-radius: 20px; padding: 16px; }
+  .bsac-signal-card h4 { margin: 0 0 10px; }
+  .bsac-signals { display: flex; flex-wrap: wrap; gap: 8px; }
+  .bsac-signal { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 11px; font-size: 12px; font-weight: 800; }
+  .bsac-signal.active { color: #065f46; background: #ecfdf5; border-color: rgba(22,163,74,.22); }
+  .bsac-signal.inactive { color: #64748b; background: #f8fafc; }
+
+  /* Feedback card */
+  .bsac-feedback-card { margin-top: 12px; border: 1px solid #fcd34d; background: #fffbeb; border-radius: 20px; padding: 16px; }
+  .bsac-feedback-card h4 { margin: 0 0 6px; }
+  .bsac-feedback-card p { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+  .bsac-feedback-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .bsac-feedback-form input { height: 38px; border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; font-size: 13px; flex: 1; min-width: 140px; background: #fff; outline: none; }
+  .bsac-feedback-form input:focus { border-color: var(--brand); }
+  #bsac-fb-submit { height: 38px; padding: 0 16px; border: 0; border-radius: 10px; background: var(--brand); color: #fff; font-weight: 700; font-size: 13px; cursor: pointer; }
+  .bsac-fb-thanks { color: #065f46; font-weight: 700; margin-top: 8px; }
+
+  /* Batch results */
+  .bsac-batch-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .bsac-batch-header h3 { margin: 0; }
+  .bsac-batch-stats { font-size: 13px; color: var(--muted); }
+  .bsac-stat-ok { color: var(--green); font-weight: 700; }
+  .bsac-batch-table-wrap { overflow-x: auto; }
+  .bsac-batch-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .bsac-batch-table th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--line); color: var(--muted); font-weight: 800; font-size: 11px; text-transform: uppercase; white-space: nowrap; }
+  .bsac-batch-table td { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .bsac-td-url { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; font-size: 12px; }
+  .bsac-batch-export { margin-top: 12px; text-align: right; }
+  #bsac-export-csv { height: 38px; padding: 0 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--text); font-weight: 700; font-size: 13px; }
+
+  .bsac-empty-card { margin-top: 16px; padding: 34px 20px; text-align: center; color: var(--muted); }
+  .bsac-empty-card h3 { margin: 12px 0 8px; color: var(--text); }
+  .bsac-empty-icon { width: 64px; height: 64px; margin: 0 auto; border-radius: 20px; background: #eff6ff; display: grid; place-items: center; color: var(--brand); }
+  .bsac-empty-icon svg { width: 32px; height: 32px; }
+
+  .bsac-risk-high { color: #dc2626 !important; border-color: #fecaca !important; background: #fef2f2 !important; }
+  .bsac-risk-medium { color: #d97706 !important; border-color: #fde68a !important; background: #fffbeb !important; }
+
+  @media (max-width:768px) {
+    .bsac-input-card { grid-template-columns: 1fr; }
+    .bsac-insight-grid, .bsac-flow, .bsac-detail-grid { grid-template-columns: repeat(2, 1fr); }
+    .bsac-feedback-form { flex-direction: column; }
+  }
+</style>

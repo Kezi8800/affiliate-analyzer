@@ -1,0 +1,32 @@
+{
+  "name": "brandshuo-attribution",
+  "version": "4.7.0",
+  "description": "Official Node.js SDK for BrandShuo Attribution Intelligence — decode affiliate links to reveal network, publisher, risk, and incrementality",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "license": "MIT",
+  "keywords": [
+    "affiliate",
+    "attribution",
+    "publisher-detection",
+    "affiliate-marketing",
+    "amazon-associates",
+    "cj-affiliate",
+    "awin",
+    "impact",
+    "rakuten",
+    "shareasale",
+    "partnerboost",
+    "levanta",
+    "link-analysis",
+    "incrementality"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kezi8800/affiliate-analyzer.git"
+  },
+  "homepage": "https://brandshuo.com",
+  "engines": {
+    "node": ">=14"
+  }
+}
