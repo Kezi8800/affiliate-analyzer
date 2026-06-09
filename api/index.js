@@ -15,7 +15,10 @@ const { analyzeLink } = require("../lib/analyze");
 
 // Lazy-load handlers
 function loadHandler(name) {
-  try { return require(`../lib/handlers/${name}`); } catch { return null; }
+  try { return require(`../lib/handlers/${name}`); } catch (e) {
+    console.error(`Handler load error [${name}]:`, e.message);
+    return null;
+  }
 }
 
 // Simple router
