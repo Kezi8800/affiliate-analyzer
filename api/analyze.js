@@ -70,10 +70,45 @@ function isConsumerReports(params = {}) {
   );
 }
 
+function isPartnerBoost(params = {}) {
+  const utmSource = String(getParam(params, "utm_source") || "").toLowerCase();
+  const utmMedium = String(getParam(params, "utm_medium") || "").toLowerCase();
+  const source = String(getParam(params, "source") || "").toLowerCase();
+
+  return Boolean(
+    getParam(params, "pb") ||
+    getParam(params, "pb_id") ||
+    getParam(params, "pb_clickid") ||
+    getParam(params, "pb_source") ||
+    utmSource.includes("partnerboost") ||
+    utmMedium.includes("partnerboost") ||
+    source.includes("partnerboost")
+  );
+}
+
+function isLevanta(params = {}) {
+  const utmSource = String(getParam(params, "utm_source") || "").toLowerCase();
+  const source = String(getParam(params, "source") || "").toLowerCase();
+
+  return Boolean(
+    getParam(params, "levanta") ||
+    getParam(params, "levanta_id") ||
+    getParam(params, "levanta_click") ||
+    utmSource.includes("levanta") ||
+    source.includes("levanta")
+  );
+}
+
 function isAmazonAttributionMaas(params = {}) {
   const maas = String(getParam(params, "maas")).toLowerCase();
   const ref = String(getParam(params, "ref_")).toLowerCase();
   const tag = String(getParam(params, "tag")).toLowerCase();
+
+  // Don't match PartnerBoost-only or Levanta-only links as MAAS
+  if (isPartnerBoost(params) && !(getParam(params, "aa_campaignid") || getParam(params, "aa_adgroupid") || getParam(params, "aa_creativeid") || maas.includes("maas") || ref.includes("aa_maas"))) {
+    return false;
+  }
+  if (isLevanta(params)) return false;
 
   return Boolean(
     getParam(params, "aa_campaignid") ||
@@ -497,6 +532,30 @@ function buildConsumerReportsResult(inputUrl, urlObj, params) {
   });
 }
 
+function buildPartnerBoostResult(inputUrl, urlObj, params) {
+  const hostname = cleanHostname(urlObj.hostname || "");
+  const merchant = detectMerchant(hostname);
+  const pbId = getParam(params, "pb") || getParam(params, "pb_id") || getParam(params, "pb_clickid");
+  const publisher = pbId ? `PartnerBoost Creator ${pbId}` : "PartnerBoost Creator";
+  const network = "PartnerBoost"; const platform = "PartnerBoost";
+
+  const pc = { path_label: `${publisher} → ${network} → ${merchant}`, path_nodes: [publisher, network, merchant], publisher_label: publisher, publisher, media_group: "PartnerBoost Creator", channel_role: "Creator / Affiliate Attribution" };
+
+  return { ok: true, error: false, version: "BrandShuo Analyze v4.7 PartnerBoost", engine: "BrandShuo Attribution Intelligence Engine", analyzed_url: inputUrl, input: inputUrl, normalizedUrl: urlObj.href, final_url: urlObj.href, domain: hostname, hostname, platform, merchant, merchant_type: "Retail / DTC", network, detection_result: network, attribution_system: network, likely_type: "Creator / Affiliate Network", publisher, publisher_label: publisher, publisher_name: publisher, publisher_raw_name: publisher, publisher_group: "PartnerBoost Creator", media_group: "PartnerBoost Creator", publisher_type: "creator_commerce", publisher_category: "creator_commerce", primary_claimer: publisher, traffic_type: "Creator / Affiliate", commercial_intent: "Creator Recommendation Intent", channel_role: "Creator / Affiliate Attribution", traffic_quality: 62, quality_score: 62, quality_label: "Moderate", incrementality_risk: "Medium", risk: "Medium", conflict_risk: "Medium", confidence: "high", publisher_intelligence: { publisher, publisher_label: publisher, type: "creator_commerce", subtype: "Creator / Affiliate", media_group: "PartnerBoost Creator", parent_media_group: "PartnerBoost", confidence: "high", matched_by: "partnerboost_param", matched_pattern: pbId ? "pb/pb_id" : "utm_source=partnerboost", network, network_type: "Creator / Affiliate Network", network_confidence: "high" }, intelligence: { pathLabel: pc.path_label, trafficType: "Creator / Affiliate", commercialIntent: "Creator Recommendation Intent", channelRole: "Creator / Affiliate Attribution", qualityScore: 62, qualityLabel: "Moderate", incrementalityRisk: "Medium", confidence: "high" }, path_classification: pc, path: pc.path_nodes, tracking_layer: { platform, merchant, network, publisher, publisher_label: publisher, publisher_group: "PartnerBoost Creator", amazon_layer: "--", domain: hostname }, attribution_layer: { merchant, platform, network, attribution_system: network, publisher, publisher_label: publisher, publisher_group: "PartnerBoost Creator", media_group: "PartnerBoost Creator", publisher_type: "creator_commerce", traffic_type: "Creator / Affiliate", commercial_intent: "Creator Recommendation Intent", traffic_quality: 62, incrementality_risk: "Medium", channel_role: "Creator / Affiliate Attribution", confidence: "high", path_classification: pc }, signals: { hasAffiliateTag: true, hasAmazonTag: false, hasPaidClickId: false, hasSubId: false, hasCouponOrDealPublisher: false, hasEditorialPublisher: false, hasPartnerizePublisherId: false, hasPartnerBoostId: Boolean(pbId) }, evidence: { params, pb: getParam(params, "pb") || null, pb_id: getParam(params, "pb_id") || null, pb_clickid: getParam(params, "pb_clickid") || null, utm_source: getParam(params, "utm_source") || null, utm_medium: getParam(params, "utm_medium") || null, utm_campaign: getParam(params, "utm_campaign") || null }, params, raw: { forced_partnerboost: true, pbId, network } };
+}
+
+function buildLevantaResult(inputUrl, urlObj, params) {
+  const hostname = cleanHostname(urlObj.hostname || "");
+  const merchant = detectMerchant(hostname);
+  const levantaId = getParam(params, "levanta") || getParam(params, "levanta_id") || getParam(params, "levanta_click");
+  const publisher = levantaId ? `Levanta Creator ${levantaId}` : "Levanta Creator";
+  const network = "Levanta"; const platform = "Levanta";
+
+  const pc = { path_label: `${publisher} → ${network} → ${merchant}`, path_nodes: [publisher, network, merchant], publisher_label: publisher, publisher, media_group: "Levanta Creator", channel_role: "Creator / Affiliate Attribution" };
+
+  return { ok: true, error: false, version: "BrandShuo Analyze v4.7 Levanta", engine: "BrandShuo Attribution Intelligence Engine", analyzed_url: inputUrl, input: inputUrl, normalizedUrl: urlObj.href, final_url: urlObj.href, domain: hostname, hostname, platform, merchant, merchant_type: "Retail / DTC", network, detection_result: network, attribution_system: network, likely_type: "Amazon Creator / Affiliate Network", publisher, publisher_label: publisher, publisher_name: publisher, publisher_raw_name: publisher, publisher_group: "Levanta Creator", media_group: "Levanta Creator", publisher_type: "creator_commerce", publisher_category: "creator_commerce", primary_claimer: publisher, traffic_type: "Creator / Influencer", commercial_intent: "Creator Recommendation Intent", channel_role: "Creator / Affiliate Attribution", traffic_quality: 64, quality_score: 64, quality_label: "Moderate", incrementality_risk: "Medium", risk: "Medium", conflict_risk: "Medium", confidence: "high", publisher_intelligence: { publisher, publisher_label: publisher, type: "creator_commerce", subtype: "Creator / Influencer", media_group: "Levanta Creator", parent_media_group: "Levanta", confidence: "high", matched_by: "levanta_param", matched_pattern: levantaId ? "levanta/levanta_id" : "utm_source=levanta", network, network_type: "Amazon Creator / Affiliate Network", network_confidence: "high" }, intelligence: { pathLabel: pc.path_label, trafficType: "Creator / Influencer", commercialIntent: "Creator Recommendation Intent", channelRole: "Creator / Affiliate Attribution", qualityScore: 64, qualityLabel: "Moderate", incrementalityRisk: "Medium", confidence: "high" }, path_classification: pc, path: pc.path_nodes, tracking_layer: { platform, merchant, network, publisher, publisher_label: publisher, publisher_group: "Levanta Creator", amazon_layer: "--", domain: hostname }, attribution_layer: { merchant, platform, network, attribution_system: network, publisher, publisher_label: publisher, publisher_group: "Levanta Creator", media_group: "Levanta Creator", publisher_type: "creator_commerce", traffic_type: "Creator / Influencer", commercial_intent: "Creator Recommendation Intent", traffic_quality: 64, incrementality_risk: "Medium", channel_role: "Creator / Affiliate Attribution", confidence: "high", path_classification: pc }, signals: { hasAffiliateTag: true, hasAmazonTag: false, hasPaidClickId: false, hasSubId: false, hasCouponOrDealPublisher: false, hasEditorialPublisher: false, hasPartnerizePublisherId: false, hasLevantaId: Boolean(levantaId) }, evidence: { params, levanta: getParam(params, "levanta") || null, levanta_id: getParam(params, "levanta_id") || null, levanta_click: getParam(params, "levanta_click") || null, utm_source: getParam(params, "utm_source") || null, utm_medium: getParam(params, "utm_medium") || null, utm_campaign: getParam(params, "utm_campaign") || null }, params, raw: { forced_levanta: true, levantaId, network } };
+}
+
 function buildAmazonAttributionMaasResult(inputUrl, urlObj, params) {
   const hostname = cleanHostname(urlObj.hostname || "");
   const merchant = detectMerchant(hostname);
@@ -886,6 +945,14 @@ module.exports = async function handler(req, res) {
 
     if (isConsumerReports(params)) {
       return res.status(200).json(buildConsumerReportsResult(inputUrl, urlObj, params));
+    }
+
+    if (isLevanta(params)) {
+      return res.status(200).json(buildLevantaResult(inputUrl, urlObj, params));
+    }
+
+    if (isPartnerBoost(params)) {
+      return res.status(200).json(buildPartnerBoostResult(inputUrl, urlObj, params));
     }
 
     if (isAmazonAttributionMaas(params)) {
