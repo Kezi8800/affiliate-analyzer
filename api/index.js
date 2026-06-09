@@ -15,7 +15,7 @@ const { analyzeLink } = require("../lib/analyze");
 
 // Lazy-load handlers
 function loadHandler(name) {
-  try { return require(`./${name}`); } catch { return null; }
+  try { return require(`../lib/handlers/${name}`); } catch { return null; }
 }
 
 // Simple router
