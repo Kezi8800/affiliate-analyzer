@@ -6,9 +6,10 @@
   "main": "lib/analyze.js",
   "scripts": {
     "start": "node api/analyze.js",
-    "test": "node test/analyze.test.js && node test/api.test.js",
+    "test": "node test/analyze.test.js && node test/api.test.js && node test/edge-cases.test.js",
     "test:unit": "node test/analyze.test.js",
     "test:api": "node test/api.test.js",
+    "test:edge": "node test/edge-cases.test.js",
     "test:watch": "node --watch test/analyze.test.js"
   },
   "keywords": [
