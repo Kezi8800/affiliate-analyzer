@@ -4,6 +4,7 @@
 // Uses shared storage layer (ready for DB migration)
 
 const storage = require("../lib/storage");
+const webhooks = require("../lib/webhooks");
 
 function getRecentFeedback(limit = 50) {
   return storage.getFeedback(limit);
@@ -64,6 +65,9 @@ module.exports = async function handler(req, res) {
 
     storage.appendFeedback(entry);
     storage.incrementCounter("feedback_submitted");
+
+    // Fire webhook notification (async, don't block response)
+    webhooks.onFeedback(entry).catch(() => {});
 
     return res.status(200).json({
       ok: true,
