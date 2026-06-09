@@ -1,42 +1,12 @@
 // api/feedback.js
 // BrandShuo Attribution Checker — Publisher Feedback Endpoint
 // POST /api/feedback
-// Body: { url, publisher_name?, publisher_group?, category?, network? }
-// Purpose: Let users submit unknown publisher info to grow the database
+// Uses shared storage layer (ready for DB migration)
 
-const fs = require("fs");
-const path = require("path");
-
-const FEEDBACK_FILE = path.join(process.cwd(), "data", "feedback.jsonl");
-
-function ensureDataDir() {
-  const dir = path.dirname(FEEDBACK_FILE);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
-function appendFeedback(entry) {
-  ensureDataDir();
-  const line = JSON.stringify(entry) + "\n";
-  fs.appendFileSync(FEEDBACK_FILE, line);
-}
+const storage = require("../lib/storage");
 
 function getRecentFeedback(limit = 50) {
-  ensureDataDir();
-  if (!fs.existsSync(FEEDBACK_FILE)) return [];
-
-  const content = fs.readFileSync(FEEDBACK_FILE, "utf8");
-  return content
-    .trim()
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
-      try { return JSON.parse(line); } catch { return null; }
-    })
-    .filter(Boolean)
-    .slice(-limit)
-    .reverse();
+  return storage.getFeedback(limit);
 }
 
 module.exports = async function handler(req, res) {
@@ -92,7 +62,8 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    appendFeedback(entry);
+    storage.appendFeedback(entry);
+    storage.incrementCounter("feedback_submitted");
 
     return res.status(200).json({
       ok: true,
