@@ -1,9 +1,29 @@
 {
   "name": "brandshuo-attribution-checker",
-  "version": "2.1.0",
+  "version": "4.7.0",
   "private": true,
-  "main": "index.js",
+  "description": "BrandShuo Attribution Intelligence Engine — Decode affiliate attribution for any link",
+  "main": "lib/analyze.js",
   "scripts": {
-    "start": "node api/analyze.js"
+    "start": "node api/analyze.js",
+    "test": "node test/analyze.test.js",
+    "test:watch": "node --watch test/analyze.test.js"
+  },
+  "keywords": [
+    "affiliate",
+    "attribution",
+    "publisher",
+    "network-detection",
+    "amazon-associates",
+    "cj-affiliate",
+    "awin",
+    "impact",
+    "rakuten",
+    "shareasale",
+    "partnerboost",
+    "levanta"
+  ],
+  "engines": {
+    "node": ">=18"
   }
 }
