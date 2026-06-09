@@ -905,11 +905,12 @@ function buildPartnerizePepperjamResult(inputUrl, urlObj, params) {
 }
 
 const { withRateLimit } = require("../lib/rate-limiter");
+const { withCache } = require("../lib/cache");
 
-module.exports = withRateLimit(async function handler(req, res) {
+module.exports = withRateLimit(withCache(async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-API-Key");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-API-Key, X-No-Cache");
 
   if (req.method === "OPTIONS") return res.status(200).end();
 
@@ -986,7 +987,8 @@ module.exports = withRateLimit(async function handler(req, res) {
     return res.status(500).json({
       ok: false,
       error: true,
-      message: err.message || "Analyze failed"
+      message: err.message || "Analyze failed",
+      request_id: require("crypto").randomBytes(4).toString("hex")
     });
   }
-});
+}));
