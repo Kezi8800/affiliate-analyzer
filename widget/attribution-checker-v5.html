@@ -1,0 +1,455 @@
+<!--
+  BrandShuo Attribution Checker v5.0 — Professional Edition
+  Paste into WordPress Elementor HTML Widget
+-->
+<div id="bsac-v5">
+  <div class="bs-shell">
+
+    <!-- HEADER -->
+    <header class="bs-header">
+      <div class="bs-logo-area">
+        <div class="bs-logo">
+          <svg viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="url(#g)"/><text x="20" y="27" text-anchor="middle" fill="white" font-size="18" font-weight="900">BS</text><defs><linearGradient id="g" x1="0" y1="0" x2="40" y2="40"><stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs></svg>
+        </div>
+        <div>
+          <h1>Attribution Checker</h1>
+          <span class="bs-version">v5.0 · BrandShuo Intelligence</span>
+        </div>
+      </div>
+      <div class="bs-header-right">
+        <button class="bs-btn-icon" id="bs-theme-toggle" title="Toggle theme">☀️</button>
+        <div class="bs-status"><span class="bs-dot"></span>Live</div>
+      </div>
+    </header>
+
+    <!-- INPUT SECTION -->
+    <div class="bs-input-section">
+      <div class="bs-tabs">
+        <button class="bs-tab active" data-tab="single">Single URL</button>
+        <button class="bs-tab" data-tab="batch">Batch Analysis</button>
+      </div>
+
+      <!-- Single Mode -->
+      <div class="bs-input-group" id="bs-input-single">
+        <div class="bs-input-row">
+          <div class="bs-input-wrap">
+            <svg class="bs-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.71 1.71"/></svg>
+            <input id="bs-url" type="text" placeholder="Paste an affiliate, Amazon, ad, or publisher link..." autocomplete="off" autofocus />
+          </div>
+          <button class="bs-btn bs-btn-primary" id="bs-analyze-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            Analyze
+          </button>
+        </div>
+      </div>
+
+      <!-- Batch Mode -->
+      <div class="bs-input-group bs-hidden" id="bs-input-batch">
+        <textarea id="bs-batch-urls" placeholder="Paste URLs — one per line&#10;&#10;https://www.amazon.com/deals?tag=slickdeals09-20&#10;https://www.awin1.com/cread.php?awinaffid=67890&#10;https://example.com/?utm_source=partnerboost&pb=test" rows="4"></textarea>
+        <div class="bs-batch-footer">
+          <span class="bs-batch-count" id="bs-batch-count">0 URLs</span>
+          <button class="bs-btn bs-btn-primary" id="bs-batch-btn">Analyze All</button>
+        </div>
+      </div>
+
+      <!-- Quick Examples -->
+      <div class="bs-examples">
+        <span class="bs-examples-label">Try:</span>
+        <button data-example="https://www.amazon.com/deals?tag=slickdeals09-20&ascsubtag=test">Amazon</button>
+        <button data-example="https://www.walmart.com/ip/11966170?irgwc=1&sourceid=imp_test">Walmart</button>
+        <button data-example="https://www.awin1.com/cread.php?awinaffid=67890&awinmid=12345">Awin</button>
+        <button data-example="https://example.com/?utm_source=partnerboost&pb=test">PartnerBoost</button>
+      </div>
+    </div>
+
+    <!-- LOADING SKELETON -->
+    <div class="bs-card bs-hidden" id="bs-loading">
+      <div class="bs-skeleton bs-skeleton-title"></div>
+      <div class="bs-skeleton-row">
+        <div class="bs-skeleton bs-skeleton-tag"></div>
+        <div class="bs-skeleton bs-skeleton-tag"></div>
+        <div class="bs-skeleton bs-skeleton-tag"></div>
+      </div>
+      <div class="bs-skeleton-grid">
+        <div class="bs-skeleton bs-skeleton-card"></div>
+        <div class="bs-skeleton bs-skeleton-card"></div>
+        <div class="bs-skeleton bs-skeleton-card"></div>
+        <div class="bs-skeleton bs-skeleton-card"></div>
+      </div>
+    </div>
+
+    <!-- RESULT -->
+    <div class="bs-card bs-hidden" id="bs-result">
+      <!-- Summary -->
+      <div class="bs-result-summary">
+        <div class="bs-summary-main">
+          <div class="bs-result-label">Detection Result</div>
+          <h2 id="bs-path-title">—</h2>
+          <div class="bs-tags" id="bs-tags"></div>
+        </div>
+        <div class="bs-summary-scores">
+          <div class="bs-score-ring" id="bs-risk-ring">
+            <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" stroke-width="4" stroke-dasharray="176" stroke-dashoffset="0"/></svg>
+            <span id="bs-risk-text">—</span>
+            <small>Risk</small>
+          </div>
+          <div class="bs-score-ring" id="bs-quality-ring">
+            <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" stroke-width="4" stroke-dasharray="176" stroke-dashoffset="176"/></svg>
+            <span id="bs-quality-text">—</span>
+            <small>Quality</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Flow -->
+      <div class="bs-flow" id="bs-flow"></div>
+
+      <!-- Detail Grid -->
+      <div class="bs-detail-grid">
+        <div class="bs-detail-group">
+          <h4>Publisher Identity</h4>
+          <div class="bs-detail-row"><span>Name</span><strong id="bs-pub-name">—</strong></div>
+          <div class="bs-detail-row"><span>Media Group</span><strong id="bs-pub-group">—</strong></div>
+          <div class="bs-detail-row"><span>Category</span><strong id="bs-pub-category">—</strong></div>
+          <div class="bs-detail-row"><span>Commercial Intent</span><strong id="bs-pub-intent">—</strong></div>
+        </div>
+        <div class="bs-detail-group">
+          <h4>Attribution Layer</h4>
+          <div class="bs-detail-row"><span>Platform</span><strong id="bs-attr-platform">—</strong></div>
+          <div class="bs-detail-row"><span>Network</span><strong id="bs-attr-network">—</strong></div>
+          <div class="bs-detail-row"><span>Tracking System</span><strong id="bs-attr-system">—</strong></div>
+          <div class="bs-detail-row"><span>Domain</span><strong id="bs-attr-domain">—</strong></div>
+        </div>
+        <div class="bs-detail-group">
+          <h4>Traffic Analysis</h4>
+          <div class="bs-detail-row"><span>Channel Role</span><strong id="bs-traffic-role">—</strong></div>
+          <div class="bs-detail-row"><span>Traffic Type</span><strong id="bs-traffic-type">—</strong></div>
+          <div class="bs-detail-row"><span>Confidence</span><strong id="bs-traffic-conf">—</strong></div>
+          <div class="bs-detail-row bs-detail-full"><span>Signal Flags</span><div class="bs-signals" id="bs-signals"></div></div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="bs-actions">
+        <button class="bs-btn bs-btn-sm" id="bs-copy-btn">📋 Copy</button>
+        <button class="bs-btn bs-btn-sm" id="bs-share-btn">🔗 Share</button>
+        <button class="bs-btn bs-btn-sm bs-hidden" id="bs-feedback-toggle">📝 Report Issue</button>
+        <a id="bs-full-report" href="#" target="_blank" class="bs-btn bs-btn-sm">Full Report ↗</a>
+      </div>
+
+      <!-- Feedback -->
+      <div class="bs-feedback bs-hidden" id="bs-feedback">
+        <p><strong>Know this publisher?</strong> Help us improve.</p>
+        <div class="bs-feedback-row">
+          <input id="bs-fb-name" placeholder="Publisher name" />
+          <input id="bs-fb-group" placeholder="Media group" />
+          <input id="bs-fb-network" placeholder="Network" value="" />
+          <button class="bs-btn bs-btn-primary bs-btn-sm" id="bs-fb-submit">Submit</button>
+        </div>
+        <div class="bs-toast bs-hidden" id="bs-fb-toast">✅ Submitted — thank you!</div>
+      </div>
+    </div>
+
+    <!-- BATCH RESULT -->
+    <div class="bs-card bs-hidden" id="bs-batch-result">
+      <div class="bs-batch-header">
+        <h3>Batch Results</h3>
+        <div class="bs-batch-stats" id="bs-batch-stats"></div>
+      </div>
+      <div class="bs-table-wrap">
+        <table><thead><tr><th>URL</th><th>Network</th><th>Publisher</th><th>Quality</th><th>Risk</th></tr></thead><tbody id="bs-batch-tbody"></tbody></table>
+      </div>
+      <div class="bs-actions"><button class="bs-btn bs-btn-sm" id="bs-export-btn">📥 Export CSV</button></div>
+    </div>
+
+    <!-- EMPTY STATE -->
+    <div class="bs-empty" id="bs-empty">
+      <div class="bs-empty-icon">
+        <svg viewBox="0 0 80 80" fill="none"><circle cx="40" cy="40" r="38" stroke="currentColor" stroke-width="1.5" stroke-dasharray="8 4"/><path d="M30 35l20-20M30 45l20 20M50 35l-20-20M50 45l-20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <h3>Decode Any Affiliate Link</h3>
+      <p>Paste a link to instantly identify the network, publisher, risk level, and incrementality.<br>Works with 25+ networks across 52 regions.</p>
+      <div class="bs-empty-networks">
+        <span>Amazon</span><span>Walmart</span><span>eBay</span><span>Impact</span><span>CJ</span>
+        <span>Awin</span><span>Rakuten</span><span>PartnerBoost</span><span>Levanta</span><span>Google Ads</span>
+        <span>Meta Ads</span><span>TikTok</span><span>ShareASale</span><span>Partnerize</span><span>+ more</span>
+      </div>
+    </div>
+
+    <!-- TOAST -->
+    <div class="bs-toast-global bs-hidden" id="bs-toast"></div>
+  </div>
+</div>
+
+<style>
+#bsac-v5{--bg:#f8fafc;--surface:#fff;--text:#0f172a;--muted:#64748b;--border:#e2e8f0;--brand:#2563eb;--brand2:#7c3aed;--green:#16a34a;--amber:#d97706;--red:#dc2626;--radius:14px;--shadow:0 1px 3px rgba(0,0,0,.06),0 4px 24px rgba(0,0,0,.04);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--text);line-height:1.5;-webkit-font-smoothing:antialiased}
+#bsac-v5 *{box-sizing:border-box;margin:0;padding:0}
+.bs-shell{max-width:960px;margin:0 auto;padding:32px 20px}
+.bs-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}
+.bs-logo-area{display:flex;align-items:center;gap:14px}
+.bs-logo svg{width:42px;height:42px;display:block}
+.bs-header h1{font-size:22px;font-weight:800;letter-spacing:-.03em}
+.bs-version{font-size:11px;color:var(--muted);font-weight:600}
+.bs-header-right{display:flex;align-items:center;gap:12px}
+.bs-btn-icon{width:38px;height:38px;border:1px solid var(--border);border-radius:10px;background:var(--surface);cursor:pointer;font-size:16px;display:grid;place-items:center}
+.bs-status{display:flex;align-items:center;gap:8px;padding:8px 14px;border:1px solid var(--border);border-radius:999px;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface)}
+.bs-dot{width:7px;height:7px;border-radius:99px;background:var(--green);box-shadow:0 0 0 4px rgba(22,163,74,.15)}
+.bs-tabs{display:flex;gap:4px;padding:4px;background:var(--bg);border-radius:10px;margin-bottom:16px;width:fit-content}
+.bs-tab{padding:8px 18px;border:0;border-radius:8px;background:transparent;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);transition:all .15s}
+.bs-tab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.bs-input-group{margin-bottom:16px}
+.bs-input-row{display:flex;gap:10px}
+.bs-input-wrap{flex:1;position:relative}
+.bs-input-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--muted)}
+#bs-url{width:100%;height:52px;padding:0 16px 0 42px;border:2px solid var(--border);border-radius:var(--radius);background:var(--surface);font-size:14px;outline:none;transition:border-color .2s}
+#bs-url:focus{border-color:var(--brand);box-shadow:0 0 0 4px rgba(37,99,235,.08)}
+#bs-batch-urls{width:100%;padding:14px 16px;border:2px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:"SF Mono",monospace;resize:vertical;outline:none;background:var(--surface)}
+#bs-batch-urls:focus{border-color:var(--brand);box-shadow:0 0 0 4px rgba(37,99,235,.08)}
+.bs-batch-footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+.bs-batch-count{font-size:12px;color:var(--muted);font-weight:600}
+.bs-btn{display:inline-flex;align-items:center;gap:6px;padding:0 20px;height:44px;border:0;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap;text-decoration:none}
+.bs-btn-primary{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;box-shadow:0 4px 16px rgba(37,99,235,.2)}
+.bs-btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(37,99,235,.3)}
+.bs-btn-primary:disabled{opacity:.6;cursor:default;transform:none}
+.bs-btn-sm{height:34px;padding:0 14px;font-size:12px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px}
+.bs-btn-sm:hover{background:var(--bg)}
+.bs-examples{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.bs-examples-label{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-right:4px}
+.bs-examples button{padding:5px 12px;border:1px solid var(--border);border-radius:99px;background:var(--surface);font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s}
+.bs-examples button:hover{color:var(--brand);border-color:var(--brand)}
+
+.bs-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;box-shadow:var(--shadow);margin-top:20px;animation:bsFadeIn .3s ease}
+@keyframes bsFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.bs-hidden{display:none!important}
+
+.bs-skeleton{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:bsShimmer 1.5s infinite;border-radius:8px}
+@keyframes bsShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.bs-skeleton-title{height:32px;width:50%;margin-bottom:16px}
+.bs-skeleton-tag{height:24px;width:80px;display:inline-block;margin-right:8px}
+.bs-skeleton-row{margin-bottom:20px}
+.bs-skeleton-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.bs-skeleton-card{height:100px}
+
+.bs-result-summary{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:24px}
+.bs-result-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:8px}
+.bs-summary-main h2{font-size:26px;font-weight:800;letter-spacing:-.03em;line-height:1.2}
+.bs-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.bs-tag{padding:4px 10px;border-radius:99px;font-size:11px;font-weight:700;background:var(--bg);border:1px solid var(--border);color:var(--muted)}
+.bs-summary-scores{display:flex;gap:20px;flex-shrink:0}
+.bs-score-ring{text-align:center;position:relative;width:72px;height:72px}
+.bs-score-ring svg{width:72px;height:72px;transform:rotate(-90deg)}
+.bs-score-ring span{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:16px;font-weight:900}
+.bs-score-ring small{position:absolute;bottom:0;left:0;right:0;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase}
+
+.bs-flow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}
+.bs-flow-node{position:relative;padding:14px;background:var(--bg);border-radius:12px;text-align:center}
+.bs-flow-node:not(:last-child)::after{content:"→";position:absolute;right:-16px;top:50%;transform:translateY(-50%);color:var(--brand);font-weight:900;font-size:14px;z-index:1}
+.bs-flow-node span{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.04em;margin-bottom:4px}
+.bs-flow-node strong{display:block;font-size:13px;font-weight:700}
+
+.bs-detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}
+.bs-detail-group{padding:16px;background:var(--bg);border-radius:12px}
+.bs-detail-group h4{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px}
+.bs-detail-row{display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;font-size:13px}
+.bs-detail-row span{color:var(--muted);font-size:12px}
+.bs-detail-row strong{font-weight:700;text-align:right;max-width:60%}
+.bs-detail-full{flex-direction:column;gap:8px}
+.bs-signals{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.bs-signal{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700}
+.bs-signal.on{background:#dcfce7;color:#166534}
+.bs-signal.off{background:var(--bg);color:var(--muted)}
+
+.bs-actions{display:flex;gap:8px;flex-wrap:wrap;padding-top:16px;border-top:1px solid var(--border)}
+.bs-feedback{padding:16px;background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;margin-top:16px}
+.bs-feedback p{font-size:13px;margin-bottom:10px}
+.bs-feedback-row{display:flex;gap:8px;flex-wrap:wrap}
+.bs-feedback-row input{flex:1;min-width:120px;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;outline:none;background:var(--surface)}
+.bs-feedback-row input:focus{border-color:var(--brand)}
+.bs-toast{font-size:12px;color:#166534;font-weight:700;margin-top:8px}
+
+.bs-batch-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.bs-batch-header h3{margin:0;font-size:18px}
+.bs-batch-stats{font-size:12px;color:var(--muted)}
+.bs-table-wrap{overflow-x:auto;margin-bottom:16px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:10px 12px;text-align:left;border-bottom:2px solid var(--border);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+td{padding:10px 12px;border-bottom:1px solid var(--border);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bs-url-cell{font-family:"SF Mono",monospace;font-size:12px}
+
+.bs-empty{text-align:center;padding:60px 20px;margin-top:20px}
+.bs-empty-icon{width:80px;height:80px;margin:0 auto 20px;color:var(--muted);opacity:.6}
+.bs-empty-icon svg{width:100%;height:100%}
+.bs-empty h3{font-size:20px;font-weight:800;margin-bottom:8px}
+.bs-empty p{color:var(--muted);max-width:480px;margin:0 auto 24px;font-size:14px;line-height:1.6}
+.bs-empty-networks{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+.bs-empty-networks span{padding:5px 12px;background:var(--surface);border:1px solid var(--border);border-radius:99px;font-size:11px;font-weight:600;color:var(--muted)}
+
+.bs-toast-global{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:12px 24px;background:#0f172a;color:#fff;border-radius:10px;font-size:13px;font-weight:600;z-index:999;animation:bsFadeIn .2s ease}
+
+@media(max-width:768px){
+  .bs-shell{padding:20px 12px}
+  .bs-header h1{font-size:18px}
+  .bs-result-summary{flex-direction:column}
+  .bs-summary-main h2{font-size:20px}
+  .bs-detail-grid,.bs-flow{grid-template-columns:1fr 1fr}
+  .bs-flow-node:not(:last-child)::after{display:none}
+  .bs-feedback-row{flex-direction:column}
+}
+</style>
+
+<script>
+(function(){
+  const API = "https://tools.brandshuo.com/api";
+  const $ = id => document.getElementById(id);
+  const $a = (sel,el) => (el||document).querySelector(sel);
+  const $$ = (sel,el) => (el||document).querySelectorAll(sel);
+
+  let lastResult = null, currentTab = "single";
+
+  // ===== Theme =====
+  const theme = localStorage.getItem("bs-theme") || "light";
+  if (theme === "dark") document.getElementById("bsac-v5").style.setProperty("--bg","#0f172a");
+  $("bs-theme-toggle").addEventListener("click",()=>{
+    const isDark = document.getElementById("bsac-v5").style.getPropertyValue("--bg") === "#0f172a";
+    document.getElementById("bsac-v5").style.setProperty("--bg", isDark ? "#f8fafc" : "#0f172a");
+    localStorage.setItem("bs-theme", isDark ? "light" : "dark");
+  });
+
+  // ===== Tabs =====
+  $$(".bs-tab").forEach(t=>t.addEventListener("click",function(){
+    $$(".bs-tab").forEach(x=>x.classList.remove("active"));this.classList.add("active");
+    currentTab=this.dataset.tab;
+    $("bs-input-single").classList.toggle("bs-hidden",currentTab!=="single");
+    $("bs-input-batch").classList.toggle("bs-hidden",currentTab!=="batch");
+  }));
+
+  // ===== Batch counter =====
+  $("bs-batch-urls").addEventListener("input",function(){
+    const n=this.value.trim().split("\n").filter(l=>l.trim()).length;
+    $("bs-batch-count").textContent=n+" URL"+(n!==1?"s":"");
+  });
+
+  // ===== Examples =====
+  $$(".bs-examples button").forEach(b=>b.addEventListener("click",function(){
+    $("bs-url").value=this.dataset.example;$("bs-analyze-btn").click();
+  }));
+
+  // ===== Keyboard =====
+  document.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();$("bs-url").focus();}});
+
+  // ===== Analyze =====
+  $("bs-analyze-btn").addEventListener("click",()=>analyze($("bs-url").value.trim()));
+  $("bs-url").addEventListener("keydown",e=>{if(e.key==="Enter")analyze($("bs-url").value.trim());});
+  $("bs-batch-btn").addEventListener("click",batchAnalyze);
+
+  async function analyze(url){
+    if(!url) return $("bs-url").focus();
+    showLoading();
+    try{
+      const r=await fetch(API+"/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url})});
+      const d=await r.json();
+      if(!r.ok||d.error) throw new Error(d.message||"Failed");
+      lastResult=d;
+      renderResult(d);
+    }catch(e){toast("❌ "+e.message);hideLoading();}
+  }
+
+  async function batchAnalyze(){
+    const lines=$("bs-batch-urls").value.trim().split("\n").filter(l=>l.trim());
+    if(!lines.length) return;if(lines.length>50) return toast("Max 50 URLs");
+    showLoading();
+    try{
+      const r=await fetch(API+"/batch",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({urls:lines})});
+      const d=await r.json();
+      if(!r.ok||d.error) throw new Error(d.message||"Failed");
+      lastResult=d;
+      renderBatch(d);
+    }catch(e){toast("❌ "+e.message);hideLoading();}
+  }
+
+  function showLoading(){$("bs-loading").classList.remove("bs-hidden");$("bs-result").classList.add("bs-hidden");$("bs-batch-result").classList.add("bs-hidden");$("bs-empty").classList.add("bs-hidden");$("bs-analyze-btn").disabled=true;$("bs-batch-btn").disabled=true}
+  function hideLoading(){$("bs-loading").classList.add("bs-hidden");$("bs-analyze-btn").disabled=false;$("bs-batch-btn").disabled=false}
+
+  function renderResult(d){
+    hideLoading();$("bs-result").classList.remove("bs-hidden");
+    // Title
+    $("bs-path-title").textContent=d.path_classification?.path_label||d.publisher+" → "+d.network;
+    // Tags
+    $("bs-tags").innerHTML=["platform","network","publisher_type"].map(k=>d[k]?`<span class="bs-tag">${d[k]}</span>`:"").join("");
+    // Scores
+    const riskEl=$("bs-risk-ring");const risk=d.incrementality_risk||d.risk||"";
+    riskEl.querySelector("circle").style.stroke=risk.toLowerCase().includes("high")?"var(--red)":risk.toLowerCase().includes("medium")?"var(--amber)":"var(--green)";
+    riskEl.querySelector("span").textContent=risk;riskEl.querySelector("small").textContent="Risk";
+    const q=Number(d.quality_score||d.traffic_quality||0);
+    const qEl=$("bs-quality-ring");const qOffset=176-(176*q/100);
+    qEl.querySelector("circle").style.stroke=q>=80?"var(--green)":q>=60?"var(--brand)":q>=40?"var(--amber)":"var(--red)";
+    qEl.querySelector("circle").setAttribute("stroke-dashoffset",qOffset);
+    qEl.querySelector("span").textContent=q;qEl.querySelector("small").textContent="Quality";
+    // Flow
+    const nodes=d.path_classification?.path_nodes||[d.publisher,d.network,d.hostname].filter(Boolean);
+    $("bs-flow").innerHTML=nodes.map((n,i)=>`<div class="bs-flow-node"><span>${["Publisher","Network","Merchant","Layer"][i]||"Hop "+i}</span><strong>${n||"—"}</strong></div>`).join("");
+    // Details
+    $("bs-pub-name").textContent=d.publisher_label||d.publisher||"—";
+    $("bs-pub-group").textContent=d.publisher_group||d.media_group||"—";
+    $("bs-pub-category").textContent=d.publisher_type||d.publisher_category||"—";
+    $("bs-pub-intent").textContent=d.commercial_intent||"—";
+    $("bs-attr-platform").textContent=d.platform||"—";
+    $("bs-attr-network").textContent=d.network||"—";
+    $("bs-attr-system").textContent=d.attribution_system||d.likely_type||"—";
+    $("bs-attr-domain").textContent=d.hostname||"—";
+    $("bs-traffic-role").textContent=d.channel_role||"—";
+    $("bs-traffic-type").textContent=d.traffic_type||"—";
+    $("bs-traffic-conf").textContent=d.confidence||"—";
+    // Signals
+    const sigs={Affiliate:d.network&&d.network!=="Unknown","Amazon Tag":d.evidence?.tag,"Paid Click":d.evidence?.gclid||d.evidence?.fbclid||d.evidence?.ttclid,"Sub ID":d.evidence?.ascsubtag||d.evidence?.clickref,"Editorial":d.publisher_type?.includes("Editorial")||d.publisher_type?.includes("Review"),"Deal/Coupon":d.publisher_type?.includes("Deal")||d.publisher_type?.includes("Coupon")};
+    $("bs-signals").innerHTML=Object.entries(sigs).map(([k,v])=>`<span class="bs-signal ${v?"on":"off"}">${v?"✓":"—"} ${k}</span>`).join("");
+    // Feedback
+    const isUnknown=!d.publisher||d.publisher.includes("Unknown");
+    $("bs-feedback-toggle").classList.toggle("bs-hidden",!isUnknown);
+    if(isUnknown){$("bs-fb-network").value=d.network||"";}
+    $("bs-feedback").classList.add("bs-hidden");
+    // Full report
+    $("bs-full-report").href=`https://brandshuo.com/attribution-checker/?url=${encodeURIComponent(d.analyzed_url||"")}`;
+  }
+
+  function renderBatch(d){
+    hideLoading();$("bs-batch-result").classList.remove("bs-hidden");
+    $("bs-batch-stats").innerHTML=`<strong>${d.stats.success}</strong>/<strong>${d.stats.total}</strong> detected · ${d.stats.duration_ms}ms`;
+    $("bs-batch-tbody").innerHTML=d.results.map(r=>`<tr><td class="bs-url-cell" title="${r.url}">${(r.url||"").replace(/^https?:\/\//,"").slice(0,45)}</td><td>${r.network||"—"}</td><td>${r.publisher||"—"}</td><td>${r.quality_score||"—"}</td><td style="color:${(r.incrementality_risk||"").includes("High")?"var(--red)":"var(--amber)"}">${r.incrementality_risk||"—"}</td></tr>`).join("");
+  }
+
+  // ===== Copy =====
+  $("bs-copy-btn").addEventListener("click",()=>{
+    if(!lastResult) return;
+    const t=`Attribution: ${lastResult.path_classification?.path_label||lastResult.publisher+" → "+lastResult.network}\nNetwork: ${lastResult.network}\nPublisher: ${lastResult.publisher}\nQuality: ${lastResult.quality_score||lastResult.traffic_quality}/100\nRisk: ${lastResult.incrementality_risk}\nPlatform: ${lastResult.platform}`;
+    navigator.clipboard.writeText(t).then(()=>toast("✅ Copied!"));
+  });
+
+  // ===== Share =====
+  $("bs-share-btn").addEventListener("click",()=>{
+    if(!lastResult?.analyzed_url) return;
+    const url=`https://brandshuo.com/attribution-checker/?url=${encodeURIComponent(lastResult.analyzed_url)}`;
+    navigator.clipboard.writeText(url).then(()=>toast("✅ Link copied!"));
+  });
+
+  // ===== Feedback =====
+  $("bs-feedback-toggle").addEventListener("click",()=>$("bs-feedback").classList.toggle("bs-hidden"));
+  $("bs-fb-submit").addEventListener("click",async()=>{
+    const name=$("bs-fb-name").value.trim(),group=$("bs-fb-group").value.trim(),net=$("bs-fb-network").value.trim();
+    if(!name&&!net) return toast("Enter name or network");
+    try{await fetch(API+"/feedback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:lastResult?.analyzed_url||"",publisher_name:name,publisher_group:group,network:net})});$("bs-fb-toast").classList.remove("bs-hidden");setTimeout(()=>$("bs-fb-toast").classList.add("bs-hidden"),3000);}catch(e){toast("Failed");}
+  });
+
+  // ===== Export =====
+  $("bs-export-btn").addEventListener("click",()=>{
+    if(!lastResult?.results) return;
+    const csv=["URL,Network,Publisher,Quality,Confidence"];
+    lastResult.results.forEach(r=>csv.push([r.url,r.network,r.publisher,r.quality_score,r.confidence].map(v=>'"'+(v||"").replace(/"/g,'""')+'"').join(",")));
+    const b=new Blob([csv.join("\n")],{type:"text/csv"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="brandshuo-batch.csv";a.click();
+    toast("✅ Exported!");
+  });
+
+  function toast(msg){const t=$("bs-toast");t.textContent=msg;t.classList.remove("bs-hidden");setTimeout(()=>t.classList.add("bs-hidden"),2000);}
+})();
+</script>
