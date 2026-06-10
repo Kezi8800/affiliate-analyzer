@@ -39,6 +39,10 @@ const ROUTES = {
   "GET /sitemap.xml": "sitemap",
   "GET /cron": "cron",
   "GET /robots": "robots",
+  // New endpoints
+  "POST /report": "report",
+  "POST /health-score": "health-score",
+  "GET /recommend": "recommend",
 };
 
 const handlerCache = {};
