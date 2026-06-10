@@ -51,6 +51,14 @@ function getHandler(name) {
 }
 
 module.exports = async function handler(req, res) {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-API-Key, X-Admin-Key, X-No-Cache");
+    return res.status(204).end();
+  }
+
   // Parse path
   const url = new URL(req.url || "", "https://tools.brandshuo.com");
   let path = url.pathname.replace(/^\/api\/?/, "/").replace(/\/+$/, "") || "/";
