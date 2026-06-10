@@ -173,9 +173,10 @@
 
 <script>
 (function(){
-  const API_URL = "https://tools.brandshuo.com/api/analyze";
-  const BATCH_URL = "https://tools.brandshuo.com/api/batch";
-  const FEEDBACK_URL = "https://tools.brandshuo.com/api/feedback";
+  const API_BASE = "https://affiliate-analyzer-v2.vercel.app/api";
+  const API_URL = API_BASE + "/analyze";
+  const BATCH_URL = API_BASE + "/batch";
+  const FEEDBACK_URL = API_BASE + "/feedback";
 
   const $ = (id) => document.getElementById(id);
   let currentMode = "single";
