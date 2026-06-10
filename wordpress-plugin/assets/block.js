@@ -1,55 +1,30 @@
-// assets/block.js — Gutenberg Block for BrandShuo Attribution Checker
-(function(wp) {
-  var registerBlockType = wp.blocks.registerBlockType;
-  var createElement = wp.element.createElement;
-  var InspectorControls = wp.blockEditor.InspectorControls;
-  var PanelBody = wp.components.PanelBody;
-  var SelectControl = wp.components.SelectControl;
-  var TextControl = wp.components.TextControl;
+(function(wp){
+  var r=wp.blocks.registerBlockType,e=wp.element.createElement,c=wp.components;
 
-  registerBlockType('brandshuo/attribution-checker', {
-    title: 'BrandShuo Attribution Checker',
-    description: 'Embed the affiliate link attribution checker on your page.',
-    icon: 'admin-links',
-    category: 'widgets',
-    attributes: {
-      mode: { type: 'string', default: 'single' },
-      placeholder: { type: 'string', default: 'Paste an affiliate link...' }
-    },
-    edit: function(props) {
-      var atts = props.attributes;
-      return createElement('div', {},
-        createElement(InspectorControls, {},
-          createElement(PanelBody, { title: 'Settings', initialOpen: true },
-            createElement(SelectControl, {
-              label: 'Mode',
-              value: atts.mode,
-              options: [
-                { label: 'Single URL', value: 'single' },
-                { label: 'Batch (up to 50)', value: 'batch' }
-              ],
-              onChange: function(v) { props.setAttributes({ mode: v }); }
-            }),
-            createElement(TextControl, {
-              label: 'Placeholder',
-              value: atts.placeholder,
-              onChange: function(v) { props.setAttributes({ placeholder: v }); }
-            })
+  r('brandshuo/attribution-checker',{
+    title:'BrandShuo Attribution Checker',
+    description:'Professional affiliate link analysis. Identify network, publisher, risk & incrementality.',
+    icon: (()=>e('svg',{width:24,height:24,viewBox:'0 0 24 24',fill:'none'},e('path',{d:'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.71 1.71',stroke:'currentColor','stroke-width':2})))(),
+    category:'widgets',keywords:['affiliate','attribution','link','publisher','network'],
+    attributes:{tab:{type:'string',default:'single'}},
+    edit:function(p){
+      return e('div',{},
+        e(wp.blockEditor.InspectorControls,{},
+          e(c.PanelBody,{title:'Settings',initialOpen:true},
+            e(c.SelectControl,{label:'Default Tab',value:p.attributes.tab,
+              options:[{label:'Single URL',value:'single'},{label:'Batch Analysis',value:'batch'}],
+              onChange:function(v){p.setAttributes({tab:v})}}
+            )
           )
         ),
-        createElement('div', {
-          style: {
-            padding: '20px', background: '#f8fafc', border: '2px dashed #e2e8f0',
-            borderRadius: '12px', textAlign: 'center', color: '#64748b'
-          }
-        },
-          createElement('strong', {}, '🔗 BrandShuo Attribution Checker'),
-          createElement('p', { style: { marginTop: '8px', fontSize: '13px' } },
-            'Mode: ' + atts.mode + ' · The checker will appear here on the frontend.'
-          )
+        e('div',{style:{padding:'24px',background:'#f8fafc',border:'2px dashed #e2e8f0',borderRadius:'16px',textAlign:'center'}},
+          e('div',{style:{fontSize:'32px',marginBottom:'12px'}},'🔗'),
+          e('strong',{style:{display:'block',fontSize:'16px',marginBottom:'6px'}},'BrandShuo Attribution Checker'),
+          e('p',{style:{color:'#64748b',fontSize:'13px',margin:0}},'Paste any affiliate link to identify the network, publisher, risk level, and incrementality.'),
+          e('p',{style:{color:'#94a3b8',fontSize:'11px',marginTop:'4px'}},'25+ networks · 605 publishers · 52 regions')
         )
       );
     },
-    save: function() { return null; } // Dynamic block, rendered server-side
+    save:function(){return null}
   });
 })(window.wp);

@@ -2,8 +2,10 @@
 /**
  * Plugin Name: BrandShuo Attribution Checker
  * Plugin URI: https://brandshuo.com
- * Description: Embed the BrandShuo Attribution Intelligence tool on any page. Decode affiliate links to reveal network, publisher, risk, and incrementality. Use shortcode [brandshuo_attribution] or Gutenberg block.
- * Version: 4.7.0
+ * Description: Professional affiliate link analysis tool. Identify network, publisher, risk level, and incrementality. 25+ networks · 605 publishers · 52 regions.
+ * Version: 5.0.0
+ * Requires at least: 6.0
+ * Requires PHP: 7.4
  * Author: BrandShuo
  * Author URI: https://brandshuo.com
  * License: GPL-2.0+
@@ -11,166 +13,57 @@
  */
 
 if (!defined('ABSPATH')) exit;
-
-define('BSAC_VERSION', '4.7.0');
+define('BSAC_VERSION', '5.0.0');
 define('BSAC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('BSAC_PLUGIN_URL', plugin_dir_url(__FILE__));
 
-// ===== Settings =====
-add_action('admin_menu', 'bsac_add_admin_menu');
-add_action('admin_init', 'bsac_register_settings');
-
-function bsac_add_admin_menu() {
-    add_options_page(
-        'BrandShuo Attribution Checker',
-        'BrandShuo Attribution',
-        'manage_options',
-        'brandshuo-attribution',
-        'bsac_settings_page'
-    );
-}
-
-function bsac_register_settings() {
-    register_setting('bsac_settings', 'bsac_api_url');
+add_action('admin_menu', function() {
+    add_options_page('BrandShuo Attribution', 'BrandShuo Attribution', 'manage_options', 'brandshuo-attribution', 'bsac_settings_page');
+});
+add_action('admin_init', function() {
     register_setting('bsac_settings', 'bsac_api_key');
-    register_setting('bsac_settings', 'bsac_default_mode');
-    register_setting('bsac_settings', 'bsac_theme');
+    register_setting('bsac_settings', 'bsac_default_tab');
+    add_option('bsac_default_tab', 'single');
+});
+add_filter('plugin_action_links_' . plugin_basename(__FILE__), function($links) {
+    $links[] = '<a href="' . admin_url('options-general.php?page=brandshuo-attribution') . '">Settings</a>';
+    return $links;
+});
 
-    add_option('bsac_api_url', 'https://tools.brandshuo.com/api/analyze');
-    add_option('bsac_default_mode', 'single');
-    add_option('bsac_theme', 'light');
-}
+function bsac_settings_page() { ?>
+<div class="wrap" style="max-width:700px">
+<div style="display:flex;align-items:center;gap:14px;margin:20px 0 10px">
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="url(#g)"/><text x="20" y="27" text-anchor="middle" fill="white" font-size="18" font-weight="900" font-family="sans-serif">BS</text><defs><linearGradient id="g" x1="0" y1="0" x2="40" y2="40"><stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs></svg>
+<div><h1 style="font-size:22px;margin:0">BrandShuo Attribution Checker</h1><p style="color:#64748b;margin:2px 0 0;font-size:13px">v<?php echo BSAC_VERSION; ?> · 605 publishers · 25+ networks · 52 regions</p></div></div>
+<form method="post" action="options.php" style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:24px;margin-top:16px">
+<?php settings_fields('bsac_settings'); ?>
+<table class="form-table">
+<tr><th><label>API Key</label></th><td><input type="password" name="bsac_api_key" value="<?php echo esc_attr(get_option('bsac_api_key','')); ?>" class="regular-text"><p class="description">Optional. Get a free key at <a href="https://brandshuo.com/api" target="_blank">brandshuo.com/api</a></p></td></tr>
+<tr><th><label>Default Tab</label></th><td><select name="bsac_default_tab"><option value="single" <?php selected(get_option('bsac_default_tab'),'single'); ?>>Single URL</option><option value="batch" <?php selected(get_option('bsac_default_tab'),'batch'); ?>>Batch Analysis</option></select></td></tr>
+</table>
+<?php submit_button('Save Settings'); ?></form>
+<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:24px;margin-top:16px">
+<h2 style="margin-top:0">Usage</h2>
+<p><strong>Shortcode:</strong> <code>[brandshuo_attribution]</code></p>
+<p><strong>Batch mode:</strong> <code>[brandshuo_attribution tab="batch"]</code></p>
+<p><strong>PHP:</strong> <code>&lt;?php echo do_shortcode('[brandshuo_attribution]'); ?&gt;</code></p>
+<p><strong>Gutenberg:</strong> Search "BrandShuo" in the block inserter.</p>
+</div></div>
+<?php }
 
-function bsac_settings_page() {
-    ?>
-    <div class="wrap">
-        <h1>🔗 BrandShuo Attribution Checker Settings</h1>
-        <form method="post" action="options.php">
-            <?php settings_fields('bsac_settings'); ?>
-            <table class="form-table">
-                <tr>
-                    <th><label for="bsac_api_url">API URL</label></th>
-                    <td>
-                        <input type="url" id="bsac_api_url" name="bsac_api_url"
-                               value="<?php echo esc_attr(get_option('bsac_api_url', 'https://tools.brandshuo.com/api/analyze')); ?>"
-                               class="regular-text" />
-                        <p class="description">Your BrandShuo Attribution Intelligence API endpoint.</p>
-                    </td>
-                </tr>
-                <tr>
-                    <th><label for="bsac_api_key">API Key</label></th>
-                    <td>
-                        <input type="password" id="bsac_api_key" name="bsac_api_key"
-                               value="<?php echo esc_attr(get_option('bsac_api_key', '')); ?>"
-                               class="regular-text" />
-                        <p class="description">Get your free API key at <a href="https://brandshuo.com/api" target="_blank">brandshuo.com/api</a>. Leave empty for free tier (100 req/mo).</p>
-                    </td>
-                </tr>
-                <tr>
-                    <th><label for="bsac_default_mode">Default Mode</label></th>
-                    <td>
-                        <select id="bsac_default_mode" name="bsac_default_mode">
-                            <option value="single" <?php selected(get_option('bsac_default_mode'), 'single'); ?>>Single URL</option>
-                            <option value="batch" <?php selected(get_option('bsac_default_mode'), 'batch'); ?>>Batch (up to 50 URLs)</option>
-                        </select>
-                    </td>
-                </tr>
-                <tr>
-                    <th><label for="bsac_theme">Theme</label></th>
-                    <td>
-                        <select id="bsac_theme" name="bsac_theme">
-                            <option value="light" <?php selected(get_option('bsac_theme'), 'light'); ?>>Light</option>
-                            <option value="dark" <?php selected(get_option('bsac_theme'), 'dark'); ?>>Dark</option>
-                        </select>
-                    </td>
-                </tr>
-            </table>
-            <?php submit_button(); ?>
-        </form>
-
-        <hr>
-        <h2>Usage</h2>
-        <p><strong>Shortcode:</strong> <code>[brandshuo_attribution]</code> — Embed the full checker on any page.</p>
-        <p><strong>Shortcode with options:</strong> <code>[brandshuo_attribution mode="batch" placeholder="Paste URLs here..."]</code></p>
-        <p><strong>PHP:</strong> <code>&lt;?php echo do_shortcode('[brandshuo_attribution]'); ?&gt;</code></p>
-        <p><strong>Gutenberg:</strong> Search for "BrandShuo Attribution" in the block editor.</p>
-
-        <hr>
-        <p style="color:#64748b;font-size:13px">
-            BrandShuo Attribution Intelligence v<?php echo BSAC_VERSION; ?> ·
-            <a href="https://brandshuo.com/attribution-checker/" target="_blank">Web App</a> ·
-            <a href="https://brandshuo.com/api" target="_blank">API Docs</a> ·
-            <a href="mailto:hello@brandshuo.com">Support</a>
-        </p>
-    </div>
-    <?php
-}
-
-// ===== Enqueue Assets =====
-add_action('wp_enqueue_scripts', 'bsac_enqueue_assets');
-
-function bsac_enqueue_assets() {
-    wp_enqueue_style('bsac-styles', BSAC_PLUGIN_URL . 'assets/checker.css', [], BSAC_VERSION);
-    wp_enqueue_script('bsac-script', BSAC_PLUGIN_URL . 'assets/checker.js', [], BSAC_VERSION, true);
-    wp_localize_script('bsac-script', 'BSAC_Config', [
-        'apiUrl' => get_option('bsac_api_url', 'https://tools.brandshuo.com/api/analyze'),
-        'batchUrl' => str_replace('/analyze', '/batch', get_option('bsac_api_url', 'https://tools.brandshuo.com/api/analyze')),
-        'feedbackUrl' => str_replace('/analyze', '/feedback', get_option('bsac_api_url', 'https://tools.brandshuo.com/api/analyze')),
-        'apiKey' => get_option('bsac_api_key', ''),
-        'defaultMode' => get_option('bsac_default_mode', 'single'),
-        'theme' => get_option('bsac_theme', 'light'),
-        'version' => BSAC_VERSION,
-        'nonce' => wp_create_nonce('bsac_ajax')
-    ]);
-}
-
-// ===== Shortcode =====
-add_shortcode('brandshuo_attribution', 'bsac_shortcode');
-
-function bsac_shortcode($atts) {
-    $atts = shortcode_atts([
-        'mode' => get_option('bsac_default_mode', 'single'),
-        'placeholder' => 'Paste an affiliate, Amazon, ad, or publisher URL...',
-    ], $atts, 'brandshuo_attribution');
-
-    ob_start();
+add_shortcode('brandshuo_attribution', function($atts) {
+    $atts = shortcode_atts(['tab' => get_option('bsac_default_tab','single')], $atts, 'brandshuo_attribution');
+    wp_enqueue_style('bsac-font', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap', [], null);
+    $config = json_encode(['defaultTab' => $atts['tab'], 'version' => BSAC_VERSION]);
+    echo "<script>window.BSAC_Config = {$config};</script>";
     include BSAC_PLUGIN_DIR . 'templates/checker.php';
-    return ob_get_clean();
-}
+});
 
-// ===== Gutenberg Block =====
-add_action('init', 'bsac_register_block');
-
-function bsac_register_block() {
+add_action('init', function() {
     if (!function_exists('register_block_type')) return;
+    wp_register_script('bsac-block', BSAC_PLUGIN_URL . 'assets/block.js', ['wp-blocks','wp-element','wp-components'], BSAC_VERSION, true);
+    register_block_type('brandshuo/attribution-checker', ['editor_script' => 'bsac-block', 'render_callback' => function($atts) { return do_shortcode('[brandshuo_attribution]'); }]);
+});
 
-    wp_register_script(
-        'bsac-block',
-        BSAC_PLUGIN_URL . 'assets/block.js',
-        ['wp-blocks', 'wp-element', 'wp-editor', 'wp-components'],
-        BSAC_VERSION
-    );
-
-    register_block_type('brandshuo/attribution-checker', [
-        'editor_script' => 'bsac-block',
-        'render_callback' => 'bsac_shortcode',
-        'attributes' => [
-            'mode' => ['type' => 'string', 'default' => 'single'],
-            'placeholder' => ['type' => 'string', 'default' => 'Paste URL...']
-        ]
-    ]);
-}
-
-// ===== Activation =====
-register_activation_hook(__FILE__, 'bsac_activate');
-function bsac_activate() {
-    add_option('bsac_api_url', 'https://tools.brandshuo.com/api/analyze');
-    add_option('bsac_default_mode', 'single');
-    add_option('bsac_theme', 'light');
-}
-
-// ===== Deactivation =====
-register_deactivation_hook(__FILE__, 'bsac_deactivate');
-function bsac_deactivate() {
-    // Clean up if needed
-}
+register_activation_hook(__FILE__, function() { add_option('bsac_default_tab','single'); });
+register_deactivation_hook(__FILE__, function() {});

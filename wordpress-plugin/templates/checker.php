@@ -1,45 +1,148 @@
 <?php
-/**
- * Template: BrandShuo Attribution Checker Widget
- * Rendered via shortcode [brandshuo_attribution]
- */
-$mode = $atts['mode'] ?? 'single';
-$placeholder = $atts['placeholder'] ?? 'Paste an affiliate, Amazon, ad, or publisher URL...';
+// BrandShuo Attribution Checker v6.0 — Plugin Template
 ?>
-<div id="bsac-wp-<?php echo uniqid(); ?>" class="bsac-wp-widget" data-mode="<?php echo esc_attr($mode); ?>" data-placeholder="<?php echo esc_attr($placeholder); ?>">
-  <div class="bsac-wp-shell">
-    <div class="bsac-wp-header">
-      <div class="bsac-wp-brand">
-        <span class="bsac-wp-logo">BS</span>
-        <div>
-          <div class="bsac-wp-eyebrow">Attribution Intelligence</div>
-          <h2>BrandShuo Attribution Checker</h2>
-        </div>
-      </div>
-    </div>
-
-    <div class="bsac-wp-toggle">
-      <button class="bsac-wp-mode-btn active" data-bsac-mode="single">Single URL</button>
-      <button class="bsac-wp-mode-btn" data-bsac-mode="batch">Batch</button>
-    </div>
-
-    <div class="bsac-wp-input-area" data-bsac-single>
-      <div class="bsac-wp-input-row">
-        <input type="text" class="bsac-wp-url-input" placeholder="<?php echo esc_attr($placeholder); ?>" autocomplete="off">
-        <button class="bsac-wp-analyze-btn">Analyze</button>
-      </div>
-    </div>
-
-    <div class="bsac-wp-input-area bsac-wp-hidden" data-bsac-batch>
-      <textarea class="bsac-wp-batch-input" placeholder="Paste multiple URLs, one per line..." rows="3"></textarea>
-      <div class="bsac-wp-batch-footer">
-        <button class="bsac-wp-batch-btn">Analyze All</button>
-        <span class="bsac-wp-batch-count">0 URLs</span>
-      </div>
-    </div>
-
-    <div class="bsac-wp-loading bsac-wp-hidden">Analyzing...</div>
-    <div class="bsac-wp-error bsac-wp-hidden"></div>
-    <div class="bsac-wp-result bsac-wp-hidden"></div>
-  </div>
-</div>
+<!-- BrandShuo Attribution Checker v6.0 — Premium Edition --><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"><div id="bsac-v6"><div class="bs-root"><!-- BG --><div class="bs-bg"><div class="bs-bg-blob bs-bg-blob-1"></div><div class="bs-bg-blob bs-bg-blob-2"></div><div class="bs-bg-grid"></div></div><div class="bs-container"><!-- HEADER --><header class="bs-head"><div class="bs-head-l"><div class="bs-logo"><svg width="36" height="36" viewBox="0 0 36 36" fill="none"><rect width="36" height="36" rx="10" fill="url(#bslg)"/><text x="18" y="24" text-anchor="middle" fill="white" font-size="16" font-weight="900" font-family="Inter,sans-serif">BS</text><defs><linearGradient id="bslg" x1="0" y1="0" x2="36" y2="36"><stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs></svg></div><div><div class="bs-head-title">Attribution Checker</div><div class="bs-head-sub">BrandShuo Intelligence</div></div></div><div class="bs-head-r"><div class="bs-pulse"></div><span>API Live</span></div></header><!-- STATS BAR --><div class="bs-stats-bar"><div class="bs-stat"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg><span>25+ Networks</span></div><div class="bs-stat"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M6 17v-4m4 4v-7m4 7V5m4 12v-2"/></svg><span>567 Publishers</span></div><div class="bs-stat"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg><span>52 Regions</span></div></div><!-- TABS --><div class="bs-tab-bar"><button class="bs-tab-pill active" data-tab="single"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.71 1.71"/></svg>Single URL</button><button class="bs-tab-pill" data-tab="batch"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Batch Analysis</button></div><!-- INPUT --><div class="bs-input-zone"><div id="bs-input-single"><div class="bs-input-shell"><div class="bs-input-icon-l"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg></div><input id="bs-url" type="text" placeholder="Paste any affiliate, ad, or publisher link..." autocomplete="off" autofocus><button class="bs-btn-main" id="bs-analyze-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>Analyze</button></div></div><div id="bs-input-batch" class="bs-hidden"><textarea id="bs-batch-urls" placeholder="Paste URLs — one per line&#10;&#10;https://www.amazon.com/deals?tag=slickdeals09-20&#10;https://www.awin1.com/cread.php?awinaffid=67890&#10;https://example.com/?utm_source=partnerboost&pb=test" rows="4"></textarea><div class="bs-batch-foot"><span id="bs-batch-count">0 URLs</span><button class="bs-btn-main" id="bs-batch-btn">Analyze All</button></div></div></div><!-- EXAMPLES --><div class="bs-chips"><span>Try:</span><button data-ex="https://www.amazon.com/deals?tag=slickdeals09-20&ascsubtag=test">Amazon Publisher</button><button data-ex="https://www.walmart.com/ip/11966170?irgwc=1&sourceid=imp_test">Walmart Impact</button><button data-ex="https://www.awin1.com/cread.php?awinaffid=67890&awinmid=12345">Awin</button><button data-ex="https://example.com/?utm_source=partnerboost&pb=test">PartnerBoost</button><button data-ex="https://example.com/?gclid=EAIaIQobChMI_test">Google Ads</button></div><!-- LOADING --><div class="bs-panel bs-hidden" id="bs-loading"><div class="bs-sk-row"><div class="bs-sk bs-sk-h1"></div></div><div class="bs-sk-row"><div class="bs-sk bs-sk-chip"></div><div class="bs-sk bs-sk-chip"></div><div class="bs-sk bs-sk-chip"></div></div><div class="bs-sk-grid"><div class="bs-sk bs-sk-box"></div><div class="bs-sk bs-sk-box"></div><div class="bs-sk bs-sk-box"></div><div class="bs-sk bs-sk-box"></div></div></div><!-- RESULT --><div class="bs-panel bs-hidden" id="bs-result"><div class="bs-result-top"><div class="bs-result-top-l"><div class="bs-eyebrow">Detection Result</div><h2 id="bs-path-title">—</h2><div id="bs-tags"></div></div><div class="bs-result-top-r"><div class="bs-gauge" id="bs-quality-gauge"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" fill="none" stroke="var(--bs-line)" stroke-width="6"/><circle cx="50" cy="50" r="42" fill="none" stroke="var(--bs-brand)" stroke-width="6" stroke-linecap="round" stroke-dasharray="264" stroke-dashoffset="264" id="bs-gauge-circle"/></svg><div class="bs-gauge-inner"><span id="bs-quality-val">—</span><small>Quality</small></div></div><div class="bs-risk-badge" id="bs-risk-badge"><span id="bs-risk-val">—</span><small>Risk</small></div></div></div><div class="bs-flow-row" id="bs-flow"></div><div class="bs-grid-3"><div class="bs-info-card"><div class="bs-info-card-head"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><h4>Publisher Identity</h4></div><div class="bs-kv"><span>Name</span><strong id="bs-pub-name">—</strong></div><div class="bs-kv"><span>Media Group</span><strong id="bs-pub-group">—</strong></div><div class="bs-kv"><span>Category</span><strong id="bs-pub-category">—</strong></div><div class="bs-kv"><span>Intent</span><strong id="bs-pub-intent">—</strong></div></div><div class="bs-info-card"><div class="bs-info-card-head"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.71 1.71"/></svg><h4>Attribution Layer</h4></div><div class="bs-kv"><span>Platform</span><strong id="bs-attr-platform">—</strong></div><div class="bs-kv"><span>Network</span><strong id="bs-attr-network">—</strong></div><div class="bs-kv"><span>Tracking</span><strong id="bs-attr-system">—</strong></div><div class="bs-kv"><span>Domain</span><strong id="bs-attr-domain">—</strong></div></div><div class="bs-info-card"><div class="bs-info-card-head"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10m0 0l-3 3m3-3l3 3M6 20h12"/></svg><h4>Traffic & Signals</h4></div><div class="bs-kv"><span>Channel Role</span><strong id="bs-traffic-role">—</strong></div><div class="bs-kv"><span>Traffic Type</span><strong id="bs-traffic-type">—</strong></div><div class="bs-kv"><span>Confidence</span><strong id="bs-traffic-conf">—</strong></div><div class="bs-signals-row" id="bs-signals"></div></div></div><div class="bs-actions-bar"><div class="bs-actions-l"><button class="bs-btn-ghost" id="bs-copy-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy</button><button class="bs-btn-ghost" id="bs-share-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/></svg>Share</button><button class="bs-btn-ghost bs-hidden" id="bs-feedback-toggle"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Report</button></div><a id="bs-full-report" href="#" target="_blank" class="bs-btn-ghost">Full Report<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></div><!-- Feedback --><div class="bs-feedback bs-hidden" id="bs-feedback"><div class="bs-fb-head"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><span>Help us identify this publisher</span></div><div class="bs-fb-row"><input id="bs-fb-name" placeholder="Publisher name"><input id="bs-fb-group" placeholder="Media group"><input id="bs-fb-network" placeholder="Network"><button class="bs-btn-main bs-btn-sm" id="bs-fb-submit">Submit</button></div><div class="bs-fb-ok bs-hidden" id="bs-fb-ok">Thank you — submission received.</div></div></div><!-- BATCH --><div class="bs-panel bs-hidden" id="bs-batch-result"><div class="bs-batch-top"><h3>Batch Results</h3><div id="bs-batch-stats"></div></div><div class="bs-tbl-wrap"><table><thead><tr><th>URL</th><th>Network</th><th>Publisher</th><th>Quality</th><th>Risk</th></tr></thead><tbody id="bs-batch-tbody"></tbody></table></div><div class="bs-actions-bar"><button class="bs-btn-ghost" id="bs-export-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Export CSV</button></div></div><!-- EMPTY --><div class="bs-empty-state" id="bs-empty"><div class="bs-empty-visual"><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect x="2" y="2" width="60" height="60" rx="16" stroke="currentColor" stroke-width="1" stroke-dasharray="4 6" opacity="0.3"/><circle cx="24" cy="24" r="6" stroke="currentColor" stroke-width="2" opacity="0.5"/><circle cx="40" cy="40" r="6" stroke="currentColor" stroke-width="2" opacity="0.5"/><path d="M28 25l8 8M30 39l8-10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.3"/></svg></div><h3>Decode Any Affiliate Link</h3><p>Instantly identify the network, publisher, risk level, and incrementality of any affiliate link. 25+ networks · 567 publishers · 52 regions.</p><div class="bs-empty-chips"><span>Amazon Associates</span><span>CJ Affiliate</span><span>Awin</span><span>Impact</span><span>Rakuten</span><span>ShareASale</span><span>PartnerBoost</span><span>Levanta</span><span>Google Ads</span><span>Meta Ads</span></div></div><!-- TOAST --><div class="bs-toast-wrap"><div class="bs-toast bs-hidden" id="bs-toast"></div></div></div></div></div><style>
+#bsac-v6{--bs-bg:#fafbfc;--bs-surface:#ffffff;--bs-text:#0f172a;--bs-muted:#64748b;--bs-line:#e8ecf1;--bs-brand:#2563eb;--bs-brand2:#7c3aed;--bs-green:#16a34a;--bs-amber:#d97706;--bs-red:#dc2626;--bs-radius:16px;--bs-shadow-sm:0 1px 2px rgba(0,0,0,.04);--bs-shadow:0 1px 3px rgba(0,0,0,.04),0 8px 32px rgba(0,0,0,.04);--bs-shadow-lg:0 4px 6px rgba(0,0,0,.04),0 16px 48px rgba(0,0,0,.06);font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--bs-text);line-height:1.5;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+#bsac-v6 *{box-sizing:border-box;margin:0;padding:0}
+.bs-root{position:relative;min-height:100vh;background:var(--bs-bg)}
+.bs-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.bs-bg-blob{position:absolute;border-radius:50%;filter:blur(80px);opacity:.4}
+.bs-bg-blob-1{width:500px;height:500px;background:radial-gradient(circle,rgba(37,99,235,.15),transparent);top:-200px;right:-100px}
+.bs-bg-blob-2{width:400px;height:400px;background:radial-gradient(circle,rgba(124,58,237,.12),transparent);bottom:-150px;left:-100px}
+.bs-bg-grid{position:absolute;inset:0;background-image:radial-gradient(circle,var(--bs-line) 1px,transparent 1px);background-size:32px 32px;opacity:.4}
+.bs-container{position:relative;z-index:1;max-width:1000px;margin:0 auto;padding:40px 24px}
+.bs-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.bs-head-l{display:flex;align-items:center;gap:14px}
+.bs-logo svg{display:block;filter:drop-shadow(0 4px 8px rgba(37,99,235,.25))}
+.bs-head-title{font-size:22px;font-weight:800;letter-spacing:-.03em;color:var(--bs-text)}
+.bs-head-sub{font-size:12px;color:var(--bs-muted);font-weight:500;margin-top:1px}
+.bs-head-r{display:flex;align-items:center;gap:8px;padding:6px 14px;border-radius:99px;border:1px solid var(--bs-line);background:var(--bs-surface);font-size:12px;font-weight:600;color:var(--bs-muted)}
+.bs-pulse{width:7px;height:7px;border-radius:99px;background:var(--bs-green);box-shadow:0 0 0 3px rgba(22,163,74,.2);animation:bsPulse 2s infinite}
+@keyframes bsPulse{0%,100%{opacity:1}50%{opacity:.5}}
+.bs-stats-bar{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap}
+.bs-stat{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--bs-muted);padding:6px 12px;background:var(--bs-surface);border:1px solid var(--bs-line);border-radius:8px}
+.bs-stat svg{color:var(--bs-brand);opacity:.7}
+.bs-tab-bar{display:flex;gap:6px;margin-bottom:18px}
+.bs-tab-pill{display:flex;align-items:center;gap:8px;padding:10px 20px;border:1px solid var(--bs-line);border-radius:99px;background:var(--bs-surface);font-size:13px;font-weight:600;color:var(--bs-muted);cursor:pointer;transition:all .2s;font-family:inherit}
+.bs-tab-pill:hover{border-color:var(--bs-brand);color:var(--bs-brand)}
+.bs-tab-pill.active{background:var(--bs-brand);color:#fff;border-color:var(--bs-brand);box-shadow:0 4px 12px rgba(37,99,235,.25)}
+.bs-tab-pill.active svg{color:#fff}
+.bs-input-zone{margin-bottom:16px}
+.bs-input-shell{display:flex;gap:1px;background:var(--bs-line);border-radius:var(--bs-radius);overflow:hidden;box-shadow:var(--bs-shadow-sm);transition:box-shadow .2s}
+.bs-input-shell:focus-within{box-shadow:0 0 0 4px rgba(37,99,235,.08),var(--bs-shadow-sm)}
+.bs-input-shell:focus-within .bs-input-icon-l{color:var(--bs-brand)}
+.bs-input-icon-l{display:grid;place-items:center;padding:0 0 0 16px;background:var(--bs-surface);color:var(--bs-muted);transition:color .2s}
+#bs-url{flex:1;height:54px;border:0;outline:none;background:var(--bs-surface);font-size:14px;font-family:inherit;padding:0 12px 0 4px;color:var(--bs-text)}
+#bs-url::placeholder{color:#94a3b8}
+.bs-btn-main{display:inline-flex;align-items:center;gap:8px;height:54px;padding:0 24px;border:0;background:linear-gradient(135deg,var(--bs-brand),var(--bs-brand2));color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;border-radius:0 var(--bs-radius) var(--bs-radius) 0;transition:all .2s;white-space:nowrap}
+.bs-btn-main:hover{opacity:.92;padding-right:28px}
+.bs-btn-main:disabled{opacity:.5;cursor:default;padding-right:24px}
+.bs-btn-sm{height:38px;padding:0 16px;font-size:12px;border-radius:10px}
+#bs-batch-urls{width:100%;padding:16px;border:1px solid var(--bs-line);border-radius:var(--bs-radius);font-size:13px;font-family:"SF Mono","Fira Code",monospace;resize:vertical;outline:none;background:var(--bs-surface);transition:border-color .2s,box-shadow .2s;min-height:120px}
+#bs-batch-urls:focus{border-color:var(--bs-brand);box-shadow:0 0 0 4px rgba(37,99,235,.08)}
+.bs-batch-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+#bs-batch-count{font-size:12px;color:var(--bs-muted);font-weight:600}
+.bs-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.bs-chips>span{font-size:10px;color:var(--bs-muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-right:4px}
+.bs-chips button{padding:6px 14px;border:1px solid var(--bs-line);border-radius:99px;background:var(--bs-surface);font-size:12px;font-weight:500;color:var(--bs-muted);cursor:pointer;transition:all .15s;font-family:inherit}
+.bs-chips button:hover{color:var(--bs-brand);border-color:var(--bs-brand);background:#eff6ff}
+.bs-panel{background:var(--bs-surface);border:1px solid var(--bs-line);border-radius:var(--bs-radius);padding:28px;box-shadow:var(--bs-shadow);margin-top:20px;animation:bsFadeIn .35s cubic-bezier(.16,1,.3,1)}
+@keyframes bsFadeIn{from{opacity:0;transform:translateY(12px);filter:blur(4px)}to{opacity:1;transform:translateY(0);filter:blur(0)}}
+.bs-hidden{display:none!important}
+.bs-sk{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:bsSk 1.5s infinite;border-radius:8px}
+@keyframes bsSk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.bs-sk-h1{height:28px;width:60%;margin-bottom:16px}
+.bs-sk-chip{height:22px;width:70px;display:inline-block;margin-right:8px;margin-bottom:20px}
+.bs-sk-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.bs-sk-box{height:110px}
+.bs-result-top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:24px}
+.bs-eyebrow{font-size:10px;color:var(--bs-muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:6px}
+.bs-result-top-l h2{font-size:24px;font-weight:800;letter-spacing:-.03em;line-height:1.25}
+.bs-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.bs-tag{padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;background:#f1f5f9;color:var(--bs-muted);border:1px solid var(--bs-line)}
+.bs-result-top-r{display:flex;align-items:center;gap:24px;flex-shrink:0}
+.bs-gauge{position:relative;width:90px;height:90px}
+.bs-gauge svg{width:90px;height:90px;transform:rotate(-90deg)}
+.bs-gauge-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.bs-gauge-inner span{font-size:22px;font-weight:900;letter-spacing:-.02em}
+.bs-gauge-inner small{font-size:10px;color:var(--bs-muted);font-weight:700;text-transform:uppercase;margin-top:2px}
+.bs-risk-badge{width:90px;height:90px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:3px solid var(--bs-line);background:var(--bs-bg)}
+.bs-risk-badge span{font-size:16px;font-weight:900;letter-spacing:-.02em}
+.bs-risk-badge small{font-size:10px;color:var(--bs-muted);font-weight:700;text-transform:uppercase;margin-top:2px}
+.bs-flow-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.bs-flow-step{position:relative;padding:16px;background:var(--bs-bg);border-radius:12px;text-align:center;transition:transform .2s}
+.bs-flow-step:hover{transform:translateY(-2px)}
+.bs-flow-step:not(:last-child)::after{content:"";position:absolute;right:-14px;top:50%;transform:translateY(-50%);width:0;height:0;border-left:6px solid var(--bs-brand);border-top:5px solid transparent;border-bottom:5px solid transparent;opacity:.4}
+.bs-flow-step span{display:block;font-size:10px;color:var(--bs-muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px}
+.bs-flow-step strong{display:block;font-size:13px;font-weight:700}
+.bs-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}
+.bs-info-card{padding:18px;background:var(--bs-bg);border-radius:12px;border:1px solid transparent;transition:border-color .2s}
+.bs-info-card:hover{border-color:var(--bs-line)}
+.bs-info-card-head{display:flex;align-items:center;gap:8px;margin-bottom:14px;color:var(--bs-brand)}
+.bs-info-card-head h4{font-size:12px;font-weight:700;color:var(--bs-text)}
+.bs-kv{display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;font-size:12px}
+.bs-kv span{color:var(--bs-muted)}
+.bs-kv strong{font-weight:600;text-align:right;max-width:55%}
+.bs-signals-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px;padding-top:10px;border-top:1px solid var(--bs-line)}
+.bs-sig{padding:3px 8px;border-radius:4px;font-size:10px;font-weight:700}
+.bs-sig.on{background:#dcfce7;color:#166534}
+.bs-sig.off{background:var(--bs-surface);color:var(--bs-muted)}
+.bs-actions-bar{display:flex;justify-content:space-between;align-items:center;padding-top:16px;border-top:1px solid var(--bs-line)}
+.bs-actions-l{display:flex;gap:6px}
+.bs-btn-ghost{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:1px solid var(--bs-line);border-radius:8px;background:var(--bs-surface);font-size:12px;font-weight:600;color:var(--bs-text);cursor:pointer;transition:all .15s;text-decoration:none;font-family:inherit}
+.bs-btn-ghost:hover{background:var(--bs-bg);border-color:#cbd5e1}
+.bs-feedback{padding:16px;margin-top:16px;border-radius:12px;border:1px solid #fcd34d;background:linear-gradient(135deg,#fffbeb,#fef3c7)}
+.bs-fb-head{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin-bottom:10px;color:#92400e}
+.bs-fb-row{display:flex;gap:8px;flex-wrap:wrap}
+.bs-fb-row input{flex:1;min-width:110px;height:38px;padding:0 12px;border:1px solid var(--bs-line);border-radius:8px;font-size:12px;outline:none;background:var(--bs-surface);font-family:inherit}
+.bs-fb-row input:focus{border-color:var(--bs-brand)}
+.bs-fb-ok{font-size:12px;font-weight:700;color:#166534;margin-top:8px}
+.bs-batch-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.bs-batch-top h3{font-size:18px;font-weight:800}
+#bs-batch-stats{font-size:12px;color:var(--bs-muted);font-weight:500}
+.bs-tbl-wrap{overflow-x:auto;margin-bottom:16px}
+.bs-tbl-wrap table{width:100%;border-collapse:collapse;font-size:13px}
+.bs-tbl-wrap th{padding:10px 14px;text-align:left;border-bottom:2px solid var(--bs-line);font-size:10px;color:var(--bs-muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+.bs-tbl-wrap td{padding:10px 14px;border-bottom:1px solid var(--bs-line);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bs-url-mono{font-family:"SF Mono","Fira Code",monospace;font-size:11px}
+.bs-empty-state{text-align:center;padding:80px 20px}
+.bs-empty-visual{margin-bottom:24px;color:var(--bs-muted);opacity:.5}
+.bs-empty-state h3{font-size:20px;font-weight:800;margin-bottom:8px}
+.bs-empty-state p{color:var(--bs-muted);max-width:520px;margin:0 auto 24px;font-size:14px;line-height:1.65}
+.bs-empty-chips{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+.bs-empty-chips span{padding:6px 14px;background:var(--bs-surface);border:1px solid var(--bs-line);border-radius:99px;font-size:11px;font-weight:500;color:var(--bs-muted)}
+.bs-toast-wrap{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:999}
+.bs-toast{padding:12px 24px;background:#0f172a;color:#fff;border-radius:99px;font-size:13px;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,.2);animation:bsFadeIn .25s ease}
+@media(max-width:768px){
+.bs-container{padding:24px 16px}.bs-head-title{font-size:18px}.bs-result-top{flex-direction:column}.bs-grid-3,.bs-flow-row{grid-template-columns:1fr 1fr}.bs-flow-step:not(:last-child)::after{display:none}.bs-input-shell{flex-direction:column;border-radius:var(--bs-radius)}.bs-input-icon-l{display:none}#bs-url{padding:0 16px;border-radius:var(--bs-radius) var(--bs-radius) 0 0}.bs-btn-main{border-radius:0 0 var(--bs-radius) var(--bs-radius);justify-content:center;width:100%}.bs-fb-row{flex-direction:column}.bs-empty-state{padding:40px 12px}
+}
+</style><script>
+(function(){const API="https://tools.brandshuo.com/api";const $=id=>document.getElementById(id);const $$=(s,e)=>(e||document).querySelectorAll(s);let last=null,tab="single";
+$$(".bs-tab-pill").forEach(t=>t.addEventListener("click",function(){$$(".bs-tab-pill").forEach(x=>x.classList.remove("active"));this.classList.add("active");tab=this.dataset.tab;$("bs-input-single").classList.toggle("bs-hidden",tab!=="single");$("bs-input-batch").classList.toggle("bs-hidden",tab!=="batch")}));
+$("bs-batch-urls").addEventListener("input",function(){const n=this.value.trim().split("\n").filter(l=>l.trim()).length;$("bs-batch-count").textContent=n+" URL"+(n!==1?"s":"")});
+$$(".bs-chips button").forEach(b=>b.addEventListener("click",function(){$("bs-url").value=this.dataset.ex;$("bs-analyze-btn").click()}));
+document.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();$("bs-url").focus()}});
+$("bs-analyze-btn").addEventListener("click",()=>analyze($("bs-url").value.trim()));
+$("bs-url").addEventListener("keydown",e=>{if(e.key==="Enter")analyze($("bs-url").value.trim())});
+$("bs-batch-btn").addEventListener("click",batch);
+async function analyze(url){if(!url)return $("bs-url").focus();showLoad();try{const r=await fetch(API+"/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url})});const d=await r.json();if(!r.ok||d.error)throw new Error(d.message||"Failed");last=d;render(d)}catch(e){toast("Analysis failed — "+e.message);hideLoad()}}
+async function batch(){const ls=$("bs-batch-urls").value.trim().split("\n").filter(l=>l.trim());if(!ls.length)return;if(ls.length>50)return toast("Max 50 URLs");showLoad();try{const r=await fetch(API+"/batch",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({urls:ls})});const d=await r.json();if(!r.ok||d.error)throw new Error(d.message||"Failed");last=d;renderBatch(d)}catch(e){toast("Batch failed — "+e.message);hideLoad()}}
+function showLoad(){$("bs-loading").classList.remove("bs-hidden");$("bs-result").classList.add("bs-hidden");$("bs-batch-result").classList.add("bs-hidden");$("bs-empty").classList.add("bs-hidden");$("bs-analyze-btn").disabled=true;$("bs-batch-btn").disabled=true}
+function hideLoad(){$("bs-loading").classList.add("bs-hidden");$("bs-analyze-btn").disabled=false;$("bs-batch-btn").disabled=false}
+function render(d){hideLoad();$("bs-result").classList.remove("bs-hidden");$("bs-path-title").textContent=d.path_classification?.path_label||(d.publisher||"?")+" → "+(d.network||"?");
+const tags=["platform","network","publisher_type"].map(k=>d[k]?`<span class="bs-tag">${d[k]}</span>`:"").join("");$("bs-tags").innerHTML=tags||`<span class="bs-tag">${d.hostname||"Unknown"}</span>`;
+const q=Number(d.quality_score||d.traffic_quality||0);const circ=264-(264*q/100);const gc=$("bs-gauge-circle");gc.setAttribute("stroke-dashoffset",circ);gc.setAttribute("stroke",q>=80?"var(--bs-green)":q>=60?"var(--bs-brand)":q>=40?"var(--bs-amber)":"var(--bs-red)");$("bs-quality-val").textContent=q;
+const risk=d.incrementality_risk||d.risk||"?";const rb=$("bs-risk-badge");$("bs-risk-val").textContent=risk;rb.style.borderColor=risk.toLowerCase().includes("high")?"var(--bs-red)":risk.toLowerCase().includes("medium")?"var(--bs-amber)":"var(--bs-green)";rb.style.color=rb.style.borderColor;
+const nodes=d.path_classification?.path_nodes||[d.publisher,d.network,d.hostname].filter(Boolean);$("bs-flow").innerHTML=nodes.map((n,i)=>`<div class="bs-flow-step"><span>${["Publisher","Network","Merchant","Tracking"][i]||"Step"}</span><strong>${n||"—"}</strong></div>`).join("");
+$("bs-pub-name").textContent=d.publisher_label||d.publisher||"—";$("bs-pub-group").textContent=d.publisher_group||d.media_group||"—";$("bs-pub-category").textContent=d.publisher_type||d.publisher_category||"—";$("bs-pub-intent").textContent=d.commercial_intent||"—";
+$("bs-attr-platform").textContent=d.platform||"—";$("bs-attr-network").textContent=d.network||"—";$("bs-attr-system").textContent=d.attribution_system||d.likely_type||"—";$("bs-attr-domain").textContent=d.hostname||"—";
+$("bs-traffic-role").textContent=d.channel_role||"—";$("bs-traffic-type").textContent=d.traffic_type||"—";$("bs-traffic-conf").textContent=d.confidence||"—";
+const sigs={Affiliate:!!(d.network&&d.network!=="Unknown"),"Amazon Tag":!!d.evidence?.tag,"Paid Click":!!(d.evidence?.gclid||d.evidence?.fbclid||d.evidence?.ttclid),"Sub ID":!!(d.evidence?.ascsubtag||d.evidence?.clickref),Editorial:!!(d.publisher_type?.includes("Editorial")||d.publisher_type?.includes("Review")||d.publisher_type?.includes("Content")),"Deal/Coupon":!!(d.publisher_type?.includes("Deal")||d.publisher_type?.includes("Coupon"))};$("bs-signals").innerHTML=Object.entries(sigs).map(([k,v])=>`<span class="bs-sig ${v?"on":"off"}">${v?"✓":"—"} ${k}</span>`).join("");
+const isUnk=!d.publisher||d.publisher.includes("Unknown");$("bs-feedback-toggle").classList.toggle("bs-hidden",!isUnk);if(isUnk){$("bs-fb-network").value=d.network||""}$("bs-feedback").classList.add("bs-hidden");$("bs-full-report").href=`https://brandshuo.com/attribution-checker/?url=${encodeURIComponent(d.analyzed_url||"")}`}
+function renderBatch(d){hideLoad();$("bs-batch-result").classList.remove("bs-hidden");$("bs-batch-stats").innerHTML=`<strong>${d.stats.success}</strong> / ${d.stats.total} detected · ${d.stats.duration_ms}ms`;$("bs-batch-tbody").innerHTML=d.results.map(r=>`<tr><td class="bs-url-mono" title="${r.url}">${(r.url||"").replace(/^https?:\/\//,"").slice(0,45)}</td><td>${r.network||"—"}</td><td>${r.publisher||"—"}</td><td>${r.quality_score||"—"}</td><td style="font-weight:600;color:${(r.incrementality_risk||"").toLowerCase().includes("high")?"var(--bs-red)":"var(--bs-amber)"}">${r.incrementality_risk||"—"}</td></tr>`).join("")}
+$("bs-copy-btn").addEventListener("click",()=>{if(!last)return;const t=`${last.path_classification?.path_label||last.publisher+" → "+last.network}\nNetwork: ${last.network}\nPublisher: ${last.publisher}\nQuality: ${last.quality_score||last.traffic_quality}/100\nRisk: ${last.incrementality_risk}`;navigator.clipboard.writeText(t).then(()=>toast("Copied to clipboard"))});
+$("bs-share-btn").addEventListener("click",()=>{if(!last?.analyzed_url)return;const u=`https://brandshuo.com/attribution-checker/?url=${encodeURIComponent(last.analyzed_url)}`;navigator.clipboard.writeText(u).then(()=>toast("Share link copied"))});
+$("bs-feedback-toggle").addEventListener("click",()=>$("bs-feedback").classList.toggle("bs-hidden"));
+$("bs-fb-submit").addEventListener("click",async()=>{const n=$("bs-fb-name").value.trim(),g=$("bs-fb-group").value.trim(),w=$("bs-fb-network").value.trim();if(!n&&!w)return toast("Enter name or network");try{await fetch(API+"/feedback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:last?.analyzed_url||"",publisher_name:n,publisher_group:g,network:w})});$("bs-fb-ok").classList.remove("bs-hidden");setTimeout(()=>$("bs-fb-ok").classList.add("bs-hidden"),3000)}catch(e){toast("Failed to submit")}});
+$("bs-export-btn").addEventListener("click",()=>{if(!last?.results)return;const c=["URL,Network,Publisher,Quality,Confidence"];last.results.forEach(r=>c.push([r.url,r.network,r.publisher,r.quality_score,r.confidence].map(v=>'"'+(v||"").replace(/"/g,'""')+'"').join(",")));const b=new Blob([c.join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="brandshuo-batch.csv";a.click();toast("CSV exported")});
+function toast(msg){const t=$("bs-toast");t.textContent=msg;t.classList.remove("bs-hidden");setTimeout(()=>t.classList.add("bs-hidden"),2000)}})();</script>
