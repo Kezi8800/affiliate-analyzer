@@ -52,6 +52,15 @@ console.log("\n=== Network Detection ===");
   console.log("PASS Amazon Associates / DealNews tag priority");
 })();
 
+(function testAmazonAttributionLevantaPrefix() {
+  const r = analyzeLink("https://www.amazon.com/dp/B0GH2MTT7D?maas=maas_adg_api_581552173495402223_static_9_129&ref_=aa_maas&tag=maas&aa_campaignid=lv_HXz6OZZ8aLfGRqSmti&aa_adgroupid=lv_iEoyJPLFzG2JjbM39Z&aa_creativeid=lv_TMeZ1Q1zIehquv4GL9&m=AYS8D0ECROBWG&th=1");
+  assertNetwork(r, "Amazon Attribution");
+  assertPublisher(r, "Levanta");
+  assert(r.publisher_group === "Levanta", `publisher_group: ${r.publisher_group}`);
+  assert(r.channel_role === "Creator / Affiliate Attribution", `channel_role: ${r.channel_role}`);
+  console.log("PASS Amazon Attribution / Levanta lv_ prefix");
+})();
+
 (function testSkimlinksDoesNotMatchShortPublisherAlias() {
   const r = analyzeLink("https://go.redirectingat.com/?id=123&url=https%3A%2F%2Fexample.com");
   assertNetwork(r, "Skimlinks");
