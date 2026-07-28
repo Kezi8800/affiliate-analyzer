@@ -52,6 +52,20 @@ console.log("\n=== Network Detection ===");
   console.log("PASS Amazon Associates / DealNews tag priority");
 })();
 
+(function testSkimlinksDoesNotMatchShortPublisherAlias() {
+  const r = analyzeLink("https://go.redirectingat.com/?id=123&url=https%3A%2F%2Fexample.com");
+  assertNetwork(r, "Skimlinks");
+  assertPublisher(r, "Skimlinks");
+  console.log("PASS Skimlinks / no short-alias collision");
+})();
+
+(function testRedditAdsDoesNotMatchRedAlias() {
+  const r = analyzeLink("https://example.com/product?rdclid=test&utm_source=reddit");
+  assertNetwork(r, "Reddit Ads");
+  assertPublisher(r, "Reddit Ads");
+  console.log("PASS Reddit Ads / no Xiaohongshu collision");
+})();
+
 (function testAwin() {
   const r = analyzeLink("https://www.awin1.com/cread.php?awinaffid=67890&awinmid=12345");
   assertNetwork(r, "Awin");
