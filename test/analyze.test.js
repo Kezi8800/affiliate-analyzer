@@ -44,6 +44,14 @@ console.log("\n=== Network Detection ===");
   console.log("PASS Amazon Associates / DealSeek");
 })();
 
+(function testAmazonAssociatesDealNewsPriority() {
+  const r = analyzeLink("https://www.amazon.com/dp/B074G52K9T?lv=shuf&smid=ATVPDKIKX0DER&ascsubtag=736bt6ikdfz6ot2q3px5NRCKmaikv6a5&th=1&tag=dealnewscom&creative=9325&camp=1789");
+  assertNetwork(r, "Amazon Associates");
+  assertPublisher(r, "DealNews");
+  assert(r.publisher_group === "DealNews", `publisher_group: ${r.publisher_group}`);
+  console.log("PASS Amazon Associates / DealNews tag priority");
+})();
+
 (function testAwin() {
   const r = analyzeLink("https://www.awin1.com/cread.php?awinaffid=67890&awinmid=12345");
   assertNetwork(r, "Awin");
