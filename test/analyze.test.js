@@ -36,6 +36,14 @@ console.log("\n=== Network Detection ===");
   console.log("✅ Amazon Associates / Slickdeals");
 })();
 
+(function testAmazonAssociatesDealSeek() {
+  const r = analyzeLink("https://www.amazon.com/dp/B09FLJTNVS?lv=shuf&smid=A1KWJVS57NX03I&psc=1&th=1&tag=dealseekweb-20&m=A1KWJVS57NX03I&channelId=1&plpRedirect=mhFallback");
+  assertNetwork(r, "Amazon Associates");
+  assertPublisher(r, "DealSeek");
+  assert(r.platform === "Amazon", "Platform should be Amazon");
+  console.log("PASS Amazon Associates / DealSeek");
+})();
+
 (function testAwin() {
   const r = analyzeLink("https://www.awin1.com/cread.php?awinaffid=67890&awinmid=12345");
   assertNetwork(r, "Awin");
